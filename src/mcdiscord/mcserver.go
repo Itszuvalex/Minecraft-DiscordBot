@@ -11,26 +11,17 @@ const (
 	Running
 )
 
-type TpsDim struct {
-	Dim int
-	Tps float32
-}
-
-type McServerRuntime struct {
-	Memory     int
-	MemoryMax  int
-	Storage    int
-	StorageMax int
-	Players    []string
-	PlayerMax  int
-	Tps        []TpsDim
-}
-
 type McServerData struct {
-	Name       string
-	Status     Status
-	ActiveTime int
-	Runtime    McServerRuntime
+	Memory     int             `json:"memory"`
+	MemoryMax  int             `json:"memorymax"`
+	Storage    int             `json:"storage"`
+	StorageMax int             `json:"storagemax"`
+	Players    []string        `json:"players"`
+	PlayerMax  int             `json:"playermax"`
+	Tps        map[int]float32 `json:"tps"`
+	Name       string          `json:"name"`
+	Status     Status          `json:"status"`
+	ActiveTime int             `json:"activetime"`
 }
 
 type McServerNet struct {
