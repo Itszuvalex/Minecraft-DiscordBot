@@ -3,11 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"mcdiscord"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/bwmarrin/discordgo"
 )
 
 var (
@@ -20,13 +19,11 @@ func init() {
 }
 
 func main() {
-	dg, err := discordgo.New("Bot " + Token)
+	dg, err := mcdiscord.New(Token)
 	if err != nil {
-		fmt.Println("error creating Discord session, ", err)
+		fmt.Println("error creating McDiscord, ", err)
 		return
 	}
-
-	dg.AddHandler(messageCreate)
 
 	err = dg.Open()
 	if err != nil {
@@ -40,14 +37,4 @@ func main() {
 	<-sc
 
 	dg.Close()
-}
-
-func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID == s.State.User.ID {
-		return
-	}
-
-	if m.Content == "ping" {
-		s.ChannelMessageSend(m.ChannelID, "Pong!")
-	}
 }

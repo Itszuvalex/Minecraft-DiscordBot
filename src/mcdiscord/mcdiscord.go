@@ -18,6 +18,10 @@ func New(token string) (*McDiscord, error) {
 		return nil, err
 	}
 	discord.session = session
+
+	// Add handlers
+	discord.AddHandler(messageCreate)
+
 	return discord, nil
 }
 
@@ -33,37 +37,14 @@ func (discord *McDiscord) Close() error {
 	return discord.session.Close()
 }
 
-/*
-	dg, err := discordgo.New("Bot " + Token)
-	if err != nil {
-		fmt.Println("error creating Discord session, ", err)
-		return
-	}
-
-	dg.AddHandler(messageCreate)
-
-	err = dg.Open()
-	if err != nil {
-		fmt.Println("error opening connection, ", err)
-		return
-	}
-
-	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
-	<-sc
-
-	dg.Close()
-}
-
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
 
+	println("Received message: ", m.Content, ", from user: ", m.Author.Username)
+
 	if m.Content == "ping" {
-		s.ChannelMessageSend(m.ChannelID, "Pong!")
+		s.ChannelMessageSend(m.ChannelID, m.Author.Username+": Pong!")
 	}
 }
-
-*/
