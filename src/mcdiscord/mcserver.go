@@ -1,6 +1,10 @@
 package mcdiscord
 
-import "golang.org/x/net/websocket"
+import (
+	"fmt"
+
+	"golang.org/x/net/websocket"
+)
 
 type Status int
 
@@ -24,13 +28,40 @@ type McServerData struct {
 	ActiveTime int             `json:"activetime"`
 }
 
-type McServerNet struct {
+type NetLocation struct {
 	Address string
 	Port    int
-	Conn    websocket.Conn
+}
+
+type McServerNet struct {
+	Location    NetLocation
+	Origin      string
+	Conn        *websocket.Conn
+	JsonHandler *JsonHandler
 }
 
 type McServer struct {
 	net  McServerNet
 	data McServerData
+}
+
+func NewMcServer(address string, port int, origin string) *McServer {
+	return &McServer{
+		McServerNet{
+			Location: NetLocation{
+				Address: address,
+				Port:    port,
+			},
+			Origin:      origin,
+			Conn:        nil,
+			JsonHandler: NewJsonHandler(),
+		},
+		McServerData{},
+	}
+}
+
+func (server *McServerNet) Connect() error {
+	var err error
+	server.Conn, err = websocket.Dial(fmt.Sprintf("ws://%s:%i", server.Location.Address, server.Location.Port), "", server.Origin)
+	return err
 }

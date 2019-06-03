@@ -1,0 +1,23 @@
+McDiscord
+    Discord Handler
+        TheChannel - Discord Channel to operate in
+        Handle Discord Messages
+            !commands
+                ->Discord Bot commands
+                    !addserver <IP> <Port>
+            !!command <server-id|server-index>
+                ->Server command
+        Handle received messages from McServer Handler
+            -> Put messages into The Channel
+    McServer Handler
+        Multiple Servers
+            Handle Server Messages
+                -> Status: Update in memory data for that server
+                -> Message: Send message into Discord channel
+    State/Config
+        Discord
+            The Channel
+            Admin IDs
+            Moderator Ids
+        McServer
+            Server Locations

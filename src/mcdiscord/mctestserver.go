@@ -1,16 +1,30 @@
 package mcdiscord
 
-import "golang.org/x/net/websocket"
+import (
+	"fmt"
+	"net/http"
+
+	"golang.org/x/net/websocket"
+)
 
 type TestServer struct {
-	Address string
-	Port    int
-	Conn    websocket.Conn
+	Port   int
+	Server http.Server
 }
 
-func NewTestServer(address string, port int) (*TestServer, error) {
+func NewTestServer(port int) (*TestServer, error) {
 	server := new(TestServer)
-	server.Address = address
 	server.Port = port
 	return server, nil
+}
+
+func (server *TestServer) Start() error {
+	mux := http.NewServeMux()
+	mux.Handle("/", websocket.Handler(server.handle))
+	server.Server = http.Server{Addr: fmt.Sprintf(":%i", server.Port), Handler: mux}
+	return server.Server.ListenAndServe()
+}
+
+func (server *TestServer) handle(ws *websocket.Conn) {
+	fmt.Println("Received connection")
 }

@@ -13,6 +13,7 @@ type CommandHandler func(string, *discordgo.MessageCreate) error
 type McDiscord struct {
 	session         *discordgo.Session
 	commandHandlers map[string]CommandHandler
+	servers         map[NetLocation]*McServer
 }
 
 func New(token string) (*McDiscord, error) {
@@ -30,6 +31,8 @@ func New(token string) (*McDiscord, error) {
 	// Add command handlers
 	discord.commandHandlers = make(map[string]CommandHandler)
 	discord.AddCommandHandler("json", discord.handleJsonTest)
+
+	discord.servers = make(map[NetLocation]*McServer)
 
 	return discord, nil
 }
@@ -90,10 +93,7 @@ func (discord *McDiscord) messageCreate(s *discordgo.Session, m *discordgo.Messa
 }
 
 func (discord *McDiscord) handleJsonTest(data string, m *discordgo.MessageCreate) error {
-	handler, err := NewJsonHandler()
-	if err != nil {
-		return err
-	}
+	handler := NewJsonHandler()
 
 	handler.RegisterHandler(MessageType, func(message interface{}) error {
 		msg, ok := message.(*Message)
@@ -108,5 +108,11 @@ func (discord *McDiscord) handleJsonTest(data string, m *discordgo.MessageCreate
 	})
 	handler.HandleJson([]byte(data))
 
+	return nil
+}
+
+func (discord *McDiscord) AddServer(address NetLocation) error {
+	server := NewMcServer(address.Address, address.Port, "192.168.0.1")
+	discord.servers[address] = server
 	return nil
 }

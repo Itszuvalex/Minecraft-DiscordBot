@@ -27,10 +27,10 @@ type JsonHandler struct {
 	handlers map[string][]JsonMessageHandler
 }
 
-func NewJsonHandler() (*JsonHandler, error) {
+func NewJsonHandler() *JsonHandler {
 	handler := new(JsonHandler)
 	handler.handlers = make(map[string][]JsonMessageHandler)
-	return handler, nil
+	return handler
 }
 
 func (jsonhandler *JsonHandler) RegisterHandler(msg string, handler JsonMessageHandler) {
