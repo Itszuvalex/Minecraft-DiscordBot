@@ -5,7 +5,7 @@ McDiscord
             !commands
                 ->Discord Bot commands
                     !addserver <IP> <Port>
-            !!command <server-id|server-index>
+            !!<server-id|server-index> command
                 ->Server command
         Handle received messages from McServer Handler
             -> Put messages into The Channel

@@ -21,7 +21,7 @@ func init() {
 }
 
 func main() {
-	dg, err := mcdiscord.New(Token)
+	dg, err := mcdiscord.New(Token, "config.json")
 	if err != nil {
 		fmt.Println("error creating McDiscord, ", err)
 		return
