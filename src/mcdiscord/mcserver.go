@@ -29,8 +29,8 @@ type McServerData struct {
 }
 
 type NetLocation struct {
-	Address string
-	Port    int
+	Address string `json:"address"`
+	Port    int    `json:"port"`
 }
 
 type McServerNet struct {
@@ -45,13 +45,10 @@ type McServer struct {
 	data McServerData
 }
 
-func NewMcServer(address string, port int, origin string) *McServer {
+func NewMcServer(location NetLocation, origin string) *McServer {
 	return &McServer{
 		McServerNet{
-			Location: NetLocation{
-				Address: address,
-				Port:    port,
-			},
+			Location:    location,
 			Origin:      origin,
 			Conn:        nil,
 			JsonHandler: NewJsonHandler(),

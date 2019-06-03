@@ -19,6 +19,7 @@ type Header struct {
 type Message struct {
 	Timestamp string `json:"timestamp"`
 	Message   string `json:"message"`
+	Sender    string `json:"sender"`
 }
 
 type JsonMessageHandler func(interface{}) error

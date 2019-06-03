@@ -19,7 +19,7 @@ func New(token string, configFile string) (*McDiscord, error) {
 		return nil, err
 	}
 	discord.Discord = discordhandler
-	discord.Servers = NewServerHandler(discord.Config)
+	discord.Servers = NewServerHandler(discord.Config, discord.Discord)
 
 	err = discord.Config.Read()
 	if err != nil {

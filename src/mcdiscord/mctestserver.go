@@ -2,6 +2,7 @@ package mcdiscord
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"golang.org/x/net/websocket"
@@ -27,4 +28,11 @@ func (server *TestServer) Start() error {
 
 func (server *TestServer) handle(ws *websocket.Conn) {
 	fmt.Println("Received connection")
+	for {
+		data, err := ioutil.ReadAll(ws)
+		if err != nil {
+			continue
+		}
+		ws.Write(data)
+	}
 }
