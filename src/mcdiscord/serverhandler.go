@@ -1,26 +1,29 @@
 package mcdiscord
 
+import "fmt"
+
 type ServerHandler struct {
 	servers    map[NetLocation]*McServer
 	mainconfig *Config
-	discord    *DiscordHandler
+	mcdiscord  *McDiscord
 }
 
-func NewServerHandler(config *Config, discord *DiscordHandler) *ServerHandler {
+func NewServerHandler(config *Config, mcdiscord *McDiscord) *ServerHandler {
 	return &ServerHandler{
 		servers:    make(map[NetLocation]*McServer),
 		mainconfig: config,
-		discord:    discord,
+		mcdiscord:  mcdiscord,
 	}
 }
 
 func (discord *ServerHandler) AddServer(address NetLocation) error {
-	server := NewMcServer(address, "192.168.0.1", discord.discord.Input)
+	server := NewMcServer(address, "192.168.0.1", discord.mcdiscord.Discord.Input)
 	err := server.net.Connect()
 	if err != nil {
 		return err
 	}
 	discord.servers[address] = server
+	fmt.Println("Added server at: ", address.Address, ":", address.Port)
 	return discord.mainconfig.Write()
 }
 
@@ -33,4 +36,11 @@ func (discord *ServerHandler) Close() []error {
 		}
 	}
 	return errors
+}
+
+func (handler *ServerHandler) SendPacketToAllServers(header Header) {
+	for loc, server := range handler.servers {
+		fmt.Println("Broadcasting message of type:", header.Type, " to server:", loc.Address)
+		server.net.JsonChan <- header
+	}
 }

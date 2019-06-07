@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -31,7 +32,7 @@ type DiscordHandler struct {
 	config          DiscordHandlerConfig
 	Input, Output   chan MessageWithSender
 	stopchan        chan bool
-	mainconfig      *Config
+	mcdiscord       *McDiscord
 }
 
 type DiscordHandlerConfig struct {
@@ -39,7 +40,7 @@ type DiscordHandlerConfig struct {
 }
 
 // NewDiscordHandler Creates a new DiscordHandler given a bot Token
-func NewDiscordHandler(token string, config *Config) (*DiscordHandler, error) {
+func NewDiscordHandler(token string, mcdiscord *McDiscord) (*DiscordHandler, error) {
 	session, err := discordgo.New("Bot " + token)
 	if err != nil {
 		fmt.Println("Error creating Discord session, ", err)
@@ -51,10 +52,10 @@ func NewDiscordHandler(token string, config *Config) (*DiscordHandler, error) {
 		config: DiscordHandlerConfig{
 			ChannelId: "",
 		},
-		Input:      make(chan MessageWithSender, BufferSize),
-		Output:     make(chan MessageWithSender, BufferSize),
-		stopchan:   make(chan bool, 1),
-		mainconfig: config,
+		Input:     make(chan MessageWithSender, BufferSize),
+		Output:    make(chan MessageWithSender, BufferSize),
+		stopchan:  make(chan bool, 2),
+		mcdiscord: mcdiscord,
 	}
 
 	// Add handlers
@@ -66,8 +67,8 @@ func NewDiscordHandler(token string, config *Config) (*DiscordHandler, error) {
 	handler.AddCommandHandler("json", handler.handleJsonTest)
 	handler.AddCommandHandler("setchannel", handler.handleSetChannel)
 
-	config.AddReadHandler(ConfigKey, handler.handleConfigRead)
-	config.AddWriteHandler(ConfigKey, handler.handleConfigWrite)
+	handler.mcdiscord.Config.AddReadHandler(ConfigKey, handler.handleConfigRead)
+	handler.mcdiscord.Config.AddWriteHandler(ConfigKey, handler.handleConfigWrite)
 
 	return handler, nil
 }
@@ -83,6 +84,7 @@ func (discord *DiscordHandler) Open() error {
 	}
 
 	go discord.HandleInputChannel()
+	go discord.HandleOutputChannel()
 
 	return nil
 }
@@ -100,7 +102,26 @@ func (discord *DiscordHandler) HandleInputChannel() {
 	}
 }
 
+func (discord *DiscordHandler) HandleOutputChannel() {
+	for {
+		select {
+		case <-discord.stopchan:
+			return
+		case o := <-discord.Output:
+			t := time.Now()
+			message := Message{Timestamp: t.Format(time.Stamp), Sender: o.Sender, Message: o.Message}
+			var header Header
+			err := MarshallMessageToHeader(&message, &header)
+			if err != nil {
+				fmt.Println("Error marshalling message", err)
+			}
+			discord.mcdiscord.Servers.SendPacketToAllServers(header)
+		}
+	}
+}
+
 func (discord *DiscordHandler) Close() error {
+	discord.stopchan <- true
 	discord.stopchan <- true
 	return discord.session.Close()
 }
@@ -166,6 +187,7 @@ func (discord *DiscordHandler) messageCreate(s *discordgo.Session, m *discordgo.
 				}
 			}
 		} else {
+			println("Broadcasting message from user: ", m.Author.Username, ", with message: ", m.Content)
 			discord.Output <- MessageWithSender{Message: m.Content, Sender: m.Author.Username}
 		}
 	}()
@@ -173,7 +195,7 @@ func (discord *DiscordHandler) messageCreate(s *discordgo.Session, m *discordgo.
 
 func (discord *DiscordHandler) handleSetChannel(data string, m *discordgo.MessageCreate) error {
 	discord.config.ChannelId = m.ChannelID
-	return discord.mainconfig.Write()
+	return discord.mcdiscord.Config.Write()
 }
 
 func (discord *DiscordHandler) handleJsonTest(data string, m *discordgo.MessageCreate) error {

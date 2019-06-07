@@ -13,13 +13,13 @@ type McDiscord struct {
 func New(token string, configFile string) (*McDiscord, error) {
 	discord := new(McDiscord)
 	discord.Config = NewConfig(configFile)
-	discordhandler, err := NewDiscordHandler(token, discord.Config)
+	discordhandler, err := NewDiscordHandler(token, discord)
 	if err != nil {
 		fmt.Println("Error creating Discord Handler session, ", err)
 		return nil, err
 	}
 	discord.Discord = discordhandler
-	discord.Servers = NewServerHandler(discord.Config, discord.Discord)
+	discord.Servers = NewServerHandler(discord.Config, discord)
 
 	err = discord.Config.Read()
 	if err != nil {

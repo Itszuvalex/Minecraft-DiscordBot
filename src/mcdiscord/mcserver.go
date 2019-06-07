@@ -40,6 +40,7 @@ type McServerNet struct {
 	Origin      string
 	Conn        *websocket.Conn
 	JsonHandler *JsonHandler
+	JsonChan    chan Header
 	stopchan    chan bool
 }
 
@@ -55,7 +56,8 @@ func NewMcServer(location NetLocation, origin string, msgchan chan MessageWithSe
 			Origin:      origin,
 			Conn:        nil,
 			JsonHandler: NewJsonHandler(),
-			stopchan:    make(chan bool, 1),
+			JsonChan:    make(chan Header, 40),
+			stopchan:    make(chan bool, 2),
 		},
 		McServerData{},
 	}
@@ -86,6 +88,7 @@ func (server *McServerNet) Connect() error {
 	fmt.Println("Successfully connected to server")
 
 	go server.handleMessages()
+	go server.handleInput()
 
 	t := time.Now()
 	message := Message{Timestamp: t.Format(time.Stamp), Sender: "Discord Bot", Message: "Successfully connected to server."}
@@ -104,6 +107,7 @@ func (server *McServerNet) Connect() error {
 
 func (server *McServerNet) Close() error {
 	server.stopchan <- true
+	server.stopchan <- true
 	return server.Conn.Close()
 }
 
@@ -116,6 +120,17 @@ func (server *McServerNet) handleMessages() {
 			var header Header
 			websocket.JSON.Receive(server.Conn, &header)
 			server.JsonHandler.HandleJson(header)
+		}
+	}
+}
+
+func (server *McServerNet) handleInput() {
+	for {
+		select {
+		case <-server.stopchan:
+			return
+		case header := <-server.JsonChan:
+			websocket.JSON.Send(server.Conn, &header)
 		}
 	}
 }
