@@ -48,7 +48,7 @@ type McServer struct {
 	data McServerData
 }
 
-func NewMcServer(location NetLocation, origin string) *McServer {
+func NewMcServer(location NetLocation, origin string, msgchan chan MessageWithSender) *McServer {
 	server := &McServer{
 		McServerNet{
 			Location:    location,
@@ -67,6 +67,8 @@ func NewMcServer(location NetLocation, origin string) *McServer {
 		}
 
 		fmt.Println(message.Timestamp, "  ", message.Sender, ":", message.Message)
+
+		msgchan <- MessageWithSender{Sender: message.Sender, Message: message.Message}
 
 		return nil
 	})
