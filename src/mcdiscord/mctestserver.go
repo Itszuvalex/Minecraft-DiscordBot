@@ -2,7 +2,6 @@ package mcdiscord
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 
 	"golang.org/x/net/websocket"
@@ -22,17 +21,28 @@ func NewTestServer(port int) (*TestServer, error) {
 func (server *TestServer) Start() error {
 	mux := http.NewServeMux()
 	mux.Handle("/", websocket.Handler(server.handle))
-	server.Server = http.Server{Addr: fmt.Sprintf(":%i", server.Port), Handler: mux}
-	return server.Server.ListenAndServe()
+	server.Server = http.Server{Addr: fmt.Sprintf(":%d", server.Port), Handler: mux}
+	go server.Server.ListenAndServe()
+
+	return nil
+}
+
+func (server *TestServer) Close() error {
+	return server.Server.Close()
 }
 
 func (server *TestServer) handle(ws *websocket.Conn) {
 	fmt.Println("Received connection")
 	for {
-		data, err := ioutil.ReadAll(ws)
+		var data Header
+		err := websocket.JSON.Receive(ws, &data)
 		if err != nil {
-			continue
+			return
 		}
-		ws.Write(data)
+		fmt.Printf("Received Header:%s from connection\n", data.Type)
+		err = websocket.JSON.Send(ws, &data)
+		if err != nil {
+			return
+		}
 	}
 }

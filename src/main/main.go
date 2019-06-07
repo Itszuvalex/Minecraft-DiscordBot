@@ -39,7 +39,19 @@ func main() {
 		fmt.Println("error creating test server, ", err)
 		return
 	}
-	testServer.Start()
+
+	err = testServer.Start()
+	if err != nil {
+		fmt.Println("error starting test server, ", err)
+		return
+	}
+	defer testServer.Close()
+
+	err = dg.Servers.AddServer(mcdiscord.NetLocation{Address: "localhost", Port: testServer.Port})
+	if err != nil {
+		fmt.Println("error adding server, ", err)
+		return
+	}
 
 	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)

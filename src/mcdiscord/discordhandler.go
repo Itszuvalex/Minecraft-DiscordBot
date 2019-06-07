@@ -177,25 +177,6 @@ func (discord *DiscordHandler) handleSetChannel(data string, m *discordgo.Messag
 }
 
 func (discord *DiscordHandler) handleJsonTest(data string, m *discordgo.MessageCreate) error {
-	handler := NewJsonHandler()
-
-	handler.RegisterHandler(MessageType, func(message interface{}) error {
-		msg, ok := message.(*Message)
-		if !ok {
-			return errors.New("Received incorrect message type.")
-		}
-
-		discord.session.ChannelMessageSend(m.ChannelID, "Received message: "+msg.Message+", at timestamp:"+msg.Timestamp)
-
-		return nil
-
-	})
-	err := handler.HandleJson([]byte(data))
-	if err != nil {
-		fmt.Println("Error handling json,", err)
-		return err
-	}
-
 	return nil
 }
 

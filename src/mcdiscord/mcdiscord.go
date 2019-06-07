@@ -34,6 +34,15 @@ func (discord *McDiscord) Open() error {
 	return discord.Discord.Open()
 }
 
-func (discord *McDiscord) Close() error {
-	return discord.Discord.Close()
+func (discord *McDiscord) Close() []error {
+	var errors []error
+	err := discord.Discord.Close()
+	if err != nil {
+		errors = append(errors, err)
+	}
+	servErrors := discord.Servers.Close()
+	if servErrors != nil {
+		errors = append(errors, servErrors...)
+	}
+	return errors
 }

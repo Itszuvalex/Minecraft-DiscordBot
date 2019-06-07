@@ -38,13 +38,7 @@ func (jsonhandler *JsonHandler) RegisterHandler(msg string, handler JsonMessageH
 	jsonhandler.handlers[msg] = append(jsonhandler.handlers[msg], handler)
 }
 
-func (jsonhandler *JsonHandler) HandleJson(data json.RawMessage) error {
-	var header Header
-	if err := json.Unmarshal(data, &header); err != nil {
-		fmt.Println("Error unmarshalling Header, ", err)
-		return err
-	}
-
+func (jsonhandler *JsonHandler) HandleJson(header Header) error {
 	switch header.Type {
 	case MessageType:
 		var message Message
@@ -104,14 +98,30 @@ func UnmarshallMessage(obj interface{}, data json.RawMessage) error {
 }
 
 func MarshalMessage(message *Message) ([]byte, error) {
-	var header Header
-	header.Type = MessageType
 	msgdata, err := json.Marshal(message)
 	if err != nil {
 		fmt.Println("Error marshalling Message, ", err)
 		return nil, err
 	}
+	return msgdata, err
+}
+
+func MarshallMessageToHeader(message *Message, header *Header) error {
+	header.Type = MessageType
+	msgdata, err := MarshalMessage(message)
+	if err != nil {
+		return err
+	}
 	header.Data = msgdata
+	return nil
+}
+
+func MarshalMessageInHeader(message *Message) ([]byte, error) {
+	var header Header
+	err := MarshallMessageToHeader(message, &header)
+	if err != nil {
+		return nil, err
+	}
 
 	data, err := json.Marshal(&header)
 	if err != nil {
@@ -121,15 +131,31 @@ func MarshalMessage(message *Message) ([]byte, error) {
 	return data, nil
 }
 
-func MarshalStatus(status *McServerData) ([]byte, error) {
-	var header Header
-	header.Type = StatusType
+func MarshallStatus(status *McServerData) ([]byte, error) {
 	statusdata, err := json.Marshal(status)
 	if err != nil {
 		fmt.Println("Error marshalling Status, ", err)
 		return nil, err
 	}
+	return statusdata, err
+}
+
+func MarshalStatusToHeader(status *McServerData, header *Header) error {
+	header.Type = StatusType
+	statusdata, err := MarshallStatus(status)
+	if err != nil {
+		return nil
+	}
 	header.Data = statusdata
+	return nil
+}
+
+func MarshalStatusInHeader(status *McServerData) ([]byte, error) {
+	var header Header
+	err := MarshalStatusToHeader(status, &header)
+	if err != nil {
+		return nil, err
+	}
 
 	data, err := json.Marshal(&header)
 	if err != nil {

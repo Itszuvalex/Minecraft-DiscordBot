@@ -1,7 +1,9 @@
 package mcdiscord
 
 import (
+	"errors"
 	"fmt"
+	"time"
 
 	"golang.org/x/net/websocket"
 )
@@ -38,6 +40,7 @@ type McServerNet struct {
 	Origin      string
 	Conn        *websocket.Conn
 	JsonHandler *JsonHandler
+	stopchan    chan bool
 }
 
 type McServer struct {
@@ -46,19 +49,71 @@ type McServer struct {
 }
 
 func NewMcServer(location NetLocation, origin string) *McServer {
-	return &McServer{
+	server := &McServer{
 		McServerNet{
 			Location:    location,
 			Origin:      origin,
 			Conn:        nil,
 			JsonHandler: NewJsonHandler(),
+			stopchan:    make(chan bool, 1),
 		},
 		McServerData{},
 	}
+	server.net.JsonHandler.RegisterHandler(MessageType, func(obj interface{}) error {
+		message, ok := obj.(*Message)
+		if !ok {
+			fmt.Println("MessageHandler passed non *Message obj")
+			return errors.New("MessageHandler passed non *Message obj")
+		}
+
+		fmt.Println(message.Timestamp, "  ", message.Sender, ":", message.Message)
+
+		return nil
+	})
+
+	return server
 }
 
 func (server *McServerNet) Connect() error {
 	var err error
-	server.Conn, err = websocket.Dial(fmt.Sprintf("ws://%s:%i", server.Location.Address, server.Location.Port), "", server.Origin)
-	return err
+	server.Conn, err = websocket.Dial(fmt.Sprintf("ws://%s:%d", server.Location.Address, server.Location.Port), "", fmt.Sprintf("http://%s", server.Origin))
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Successfully connected to server")
+
+	go server.handleMessages()
+
+	t := time.Now()
+	message := Message{Timestamp: t.Format(time.Stamp), Sender: "Discord Bot", Message: "Successfully connected to server."}
+	var header Header
+	MarshallMessageToHeader(&message, &header)
+	err = websocket.JSON.Send(server.Conn, &header)
+	if err != nil {
+		server.Close()
+		return err
+	}
+
+	fmt.Println("Successfully sent bytes to server")
+
+	return nil
+}
+
+func (server *McServerNet) Close() error {
+	server.stopchan <- true
+	return server.Conn.Close()
+}
+
+func (server *McServerNet) handleMessages() {
+	for {
+		select {
+		case <-server.stopchan:
+			return
+		default:
+			var header Header
+			websocket.JSON.Receive(server.Conn, &header)
+			server.JsonHandler.HandleJson(header)
+		}
+	}
 }
