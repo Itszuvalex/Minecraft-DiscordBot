@@ -47,7 +47,7 @@ func main() {
 	}
 	defer testServer.Close()
 
-	err = dg.Servers.AddServer(mcdiscord.NetLocation{Address: "localhost", Port: testServer.Port})
+	err = dg.Servers.AddServer(mcdiscord.NetLocation{Address: "localhost", Port: testServer.Port}, "test server")
 	if err != nil {
 		fmt.Println("error adding server, ", err)
 		return

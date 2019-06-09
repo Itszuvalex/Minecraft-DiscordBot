@@ -66,6 +66,9 @@ func NewDiscordHandler(token string, mcdiscord *McDiscord) (*DiscordHandler, err
 	handler.commandHandlers = make(map[string]CommandHandler)
 	handler.AddCommandHandler("json", handler.handleJsonTest)
 	handler.AddCommandHandler("setchannel", handler.handleSetChannel)
+	handler.AddCommandHandler("ls", handler.handleListServers)
+	handler.AddCommandHandler("as", handler.handleAddServer)
+	handler.AddCommandHandler("rm", handler.handleRemoveServer)
 
 	handler.mcdiscord.Config.AddReadHandler(ConfigKey, handler.handleConfigRead)
 	handler.mcdiscord.Config.AddWriteHandler(ConfigKey, handler.handleConfigWrite)
@@ -202,6 +205,68 @@ func (discord *DiscordHandler) handleSetChannel(data string, m *discordgo.Messag
 
 func (discord *DiscordHandler) handleJsonTest(data string, m *discordgo.MessageCreate) error {
 	return nil
+}
+
+func (discord *DiscordHandler) handleListServers(data string, m *discordgo.MessageCreate) error {
+	if discord.config.ChannelId != m.Message.ChannelID {
+		return errors.New("Wrong channel")
+	}
+	var serverfields []*discordgo.MessageEmbedField
+	for _, server := range discord.mcdiscord.Servers.Servers {
+		serverfields = append(serverfields, &discordgo.MessageEmbedField{
+			Name:  fmt.Sprintf("%s", server.data.Name),
+			Value: fmt.Sprintf("%s:%d", server.net.Location.Address, server.net.Location.Port),
+		})
+	}
+	embed := &discordgo.MessageEmbed{
+		Author:      &discordgo.MessageEmbedAuthor{},
+		Color:       0x00ff00,
+		Description: "Servers connected to discord.",
+		Fields:      serverfields,
+		Timestamp:   time.Now().Format(time.RFC3339),
+		Title:       "List Servers",
+	}
+	_, err := discord.session.ChannelMessageSendEmbed(discord.config.ChannelId, embed)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (discord *DiscordHandler) handleAddServer(data string, m *discordgo.MessageCreate) error {
+	if discord.config.ChannelId != m.Message.ChannelID {
+		return errors.New("Wrong channel")
+	}
+	args := strings.Split(data, " ")
+	if len(args) < 2 {
+		return errors.New("Add server needs args {ip:port} {name}")
+	}
+
+	location, err := ParseNetLocation(args[0])
+	if err != nil {
+		return err
+	}
+
+	name := strings.Join(args[1:], " ")
+	err = discord.mcdiscord.Servers.AddServer(*location, name)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (discord *DiscordHandler) handleRemoveServer(data string, m *discordgo.MessageCreate) error {
+	if discord.config.ChannelId != m.Message.ChannelID {
+		return errors.New("Wrong channel")
+	}
+	if strings.Contains(data, ":") {
+		location, err := ParseNetLocation(data)
+		if err != nil {
+			return err
+		}
+		return discord.mcdiscord.Servers.RemoveServer(*location)
+	} else {
+		return discord.mcdiscord.Servers.RemoveServerByName(data)
+	}
 }
 
 func (discord *DiscordHandler) handleConfigRead(data json.RawMessage) error {

@@ -47,9 +47,10 @@ type McServerNet struct {
 type McServer struct {
 	net  McServerNet
 	data McServerData
+	Name string
 }
 
-func NewMcServer(location NetLocation, origin string, msgchan chan MessageWithSender) *McServer {
+func NewMcServer(location NetLocation, origin string, name string, msgchan chan MessageWithSender) *McServer {
 	server := &McServer{
 		McServerNet{
 			Location:    location,
@@ -59,7 +60,8 @@ func NewMcServer(location NetLocation, origin string, msgchan chan MessageWithSe
 			JsonChan:    make(chan Header, 40),
 			stopchan:    make(chan bool, 2),
 		},
-		McServerData{},
+		McServerData{Name: name},
+		name,
 	}
 	server.net.JsonHandler.RegisterHandler(MessageType, func(obj interface{}) error {
 		message, ok := obj.(*Message)
