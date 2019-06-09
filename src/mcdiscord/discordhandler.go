@@ -187,8 +187,10 @@ func (discord *DiscordHandler) messageCreate(s *discordgo.Session, m *discordgo.
 				}
 			}
 		} else {
-			println("Broadcasting message from user: ", m.Author.Username, ", with message: ", m.Content)
-			discord.Output <- MessageWithSender{Message: m.Content, Sender: m.Author.Username}
+			if m.Message.ChannelID == discord.config.ChannelId {
+				println("Broadcasting message from user: ", m.Author.Username, ", with message: ", m.Content)
+				discord.Output <- MessageWithSender{Message: m.Content, Sender: m.Author.Username}
+			}
 		}
 	}()
 }
