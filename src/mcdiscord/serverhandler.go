@@ -1,6 +1,9 @@
 package mcdiscord
 
-import "fmt"
+import (
+	"fmt"
+	"net"
+)
 
 type ServerHandler struct {
 	Servers    map[NetLocation]*McServer
@@ -17,7 +20,7 @@ func NewServerHandler(config *Config, mcdiscord *McDiscord) *ServerHandler {
 }
 
 func (discord *ServerHandler) AddServer(address NetLocation, name string) error {
-	server := NewMcServer(address, "192.168.0.1", name, discord.mcdiscord.Discord.Input)
+	server := NewMcServer(address, GetLocalIP(), name, discord.mcdiscord.Discord.Input)
 	err := server.net.Connect()
 	if err != nil {
 		return err
@@ -25,6 +28,23 @@ func (discord *ServerHandler) AddServer(address NetLocation, name string) error 
 	discord.Servers[address] = server
 	fmt.Println("Added server at: ", address.Address, ":", address.Port)
 	return discord.mainconfig.Write()
+}
+
+// GetLocalIP returns the non loopback local IP of the host
+func GetLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, address := range addrs {
+		// check the address type and if it is not a loopback the display it
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return ""
 }
 
 func (discord *ServerHandler) Close() []error {

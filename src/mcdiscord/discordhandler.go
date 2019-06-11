@@ -239,17 +239,20 @@ func (discord *DiscordHandler) handleAddServer(data string, m *discordgo.Message
 	}
 	args := strings.Split(data, " ")
 	if len(args) < 2 {
+		fmt.Println("Add server needs server name.")
 		return errors.New("Add server needs args {ip:port} {name}")
 	}
 
 	location, err := ParseNetLocation(args[0])
 	if err != nil {
+		fmt.Println("Add server could not parse NetLocation:", err)
 		return err
 	}
 
 	name := strings.Join(args[1:], " ")
 	err = discord.mcdiscord.Servers.AddServer(*location, name)
 	if err != nil {
+		fmt.Println("Add server could not add server", err)
 		return err
 	}
 	return nil

@@ -84,6 +84,7 @@ func (server *McServerNet) Connect() error {
 	var err error
 	server.Conn, err = websocket.Dial(fmt.Sprintf("ws://%s:%d", server.Location.Address, server.Location.Port), "", fmt.Sprintf("http://%s", server.Origin))
 	if err != nil {
+		fmt.Println("Error connectiong to server, ", err)
 		return err
 	}
 
