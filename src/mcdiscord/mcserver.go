@@ -8,26 +8,30 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-type Status int
+// State exists because Go doesn't have enums for some reason.
+type State int
 
 const (
-	Disconnected Status = iota
-	Stopped
-	Starting
-	Running
+	// NotRunning indicates something...
+	NotRunning State = 0
+	// Starting indicates the server is running but not ready for players yet.
+	Starting State = 1
+	// Running indicates the server is ready for players to connect to.
+	Running State = 2
 )
 
 type McServerData struct {
-	Memory     int             `json:"memory"`
-	MemoryMax  int             `json:"memorymax"`
-	Storage    int             `json:"storage"`
-	StorageMax int             `json:"storagemax"`
-	Players    []string        `json:"players"`
-	PlayerMax  int             `json:"playermax"`
-	Tps        map[int]float32 `json:"tps"`
-	Name       string          `json:"name"`
-	Status     Status          `json:"status"`
-	ActiveTime int             `json:"activetime"`
+	Memory      int             `json:"memory"`
+	MemoryMax   int             `json:"memorymax"`
+	Storage     uint64          `json:"storage"`
+	StorageMax  uint64          `json:"storagemax"`
+	Players     []string        `json:"players"`
+	PlayerCount int             `json:"playercount"`
+	PlayerMax   int             `json:"playermax"`
+	Tps         map[int]float32 `json:"tps"`
+	Name        string          `json:"name"`
+	Status      string          `json:"status"`
+	ActiveTime  int             `json:"activetime"`
 }
 
 type NetLocation struct {
@@ -74,6 +78,16 @@ func NewMcServer(location NetLocation, origin string, name string, msgchan chan 
 
 		msgchan <- MessageWithSender{Sender: message.Sender, Message: message.Message}
 
+		return nil
+	})
+	server.net.JsonHandler.RegisterHandler(StatusType, func(obj interface{}) error {
+		message, ok := obj.(*McServerData)
+		if !ok {
+			fmt.Println("MessageHandler passed non *McServerData obj")
+			return errors.New("MessageHandler passed non *McServerData obj")
+		}
+
+		fmt.Println(message)
 		return nil
 	})
 
