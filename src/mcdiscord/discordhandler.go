@@ -111,12 +111,11 @@ func (discord *DiscordHandler) HandleOutputChannel() {
 		case <-discord.stopchan:
 			return
 		case o := <-discord.Output:
-			t := time.Now()
-			message := Message{Timestamp: t.Format(time.Stamp), Sender: o.Sender, Message: o.Message}
+			command := Command{fmt.Sprintf("say %s: %s", o.Sender, o.Message)}
 			var header Header
-			err := MarshallMessageToHeader(&message, &header)
+			err := MarshalCommandToHeader(&command, &header)
 			if err != nil {
-				fmt.Println("Error marshalling message", err)
+				fmt.Println("Error marshalling command", err)
 			}
 			discord.mcdiscord.Servers.SendPacketToAllServers(header)
 		}

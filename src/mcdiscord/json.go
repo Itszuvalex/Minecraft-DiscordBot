@@ -9,6 +9,7 @@ import (
 const (
 	MessageType string = "msg"
 	StatusType  string = "status"
+	CommandType string = "cmd"
 )
 
 type Header struct {
@@ -19,7 +20,10 @@ type Header struct {
 type Message struct {
 	Timestamp string `json:"timestamp"`
 	Message   string `json:"message"`
-	Sender    string `json:"sender"`
+}
+
+type Command struct {
+	Command string `json:"cmd"`
 }
 
 type JsonMessageHandler func(interface{}) error
@@ -110,6 +114,7 @@ func MarshallMessageToHeader(message *Message, header *Header) error {
 	header.Type = MessageType
 	msgdata, err := MarshalMessage(message)
 	if err != nil {
+		fmt.Println("Error marshalling Message, ", err)
 		return err
 	}
 	header.Data = msgdata
@@ -144,7 +149,8 @@ func MarshalStatusToHeader(status *McServerData, header *Header) error {
 	header.Type = StatusType
 	statusdata, err := MarshallStatus(status)
 	if err != nil {
-		return nil
+		fmt.Println("Error marshalling Status, ", err)
+		return err
 	}
 	header.Data = statusdata
 	return nil
@@ -160,6 +166,41 @@ func MarshalStatusInHeader(status *McServerData) ([]byte, error) {
 	data, err := json.Marshal(&header)
 	if err != nil {
 		fmt.Println("Error marshalling Status Header, ", err)
+		return nil, err
+	}
+	return data, nil
+}
+
+func MarshallCommand(command *Command) ([]byte, error) {
+	commanddata, err := json.Marshal(command)
+	if err != nil {
+		fmt.Println("Error marshalling Command, ", err)
+		return nil, err
+	}
+	return commanddata, err
+}
+
+func MarshalCommandToHeader(command *Command, header *Header) error {
+	header.Type = CommandType
+	commandData, err := MarshallCommand(command)
+	if err != nil {
+		fmt.Println("Error marshalling Command, ", err)
+		return err
+	}
+	header.Data = commandData
+	return nil
+}
+
+func MarshalCommandInHeader(command *Command) ([]byte, error) {
+	var header Header
+	err := MarshalCommandToHeader(command, &header)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := json.Marshal(&header)
+	if err != nil {
+		fmt.Println("Error marshalling Command Header, ", err)
 		return nil, err
 	}
 	return data, nil

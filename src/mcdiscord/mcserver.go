@@ -74,9 +74,9 @@ func NewMcServer(location NetLocation, origin string, name string, msgchan chan 
 			return errors.New("MessageHandler passed non *Message obj")
 		}
 
-		fmt.Println(message.Timestamp, "  ", message.Sender, ":", message.Message)
+		fmt.Println(message.Timestamp, "  :", message.Message)
 
-		msgchan <- MessageWithSender{Sender: message.Sender, Message: message.Message}
+		msgchan <- MessageWithSender{Sender: "", Message: message.Message}
 
 		return nil
 	})
@@ -108,7 +108,7 @@ func (server *McServerNet) Connect() error {
 	go server.handleInput()
 
 	t := time.Now()
-	message := Message{Timestamp: t.Format(time.Stamp), Sender: "Discord Bot", Message: "Successfully connected to server."}
+	message := Message{Timestamp: t.Format(time.Stamp), Message: "Discord Bot: Successfully connected to server."}
 	var header Header
 	MarshallMessageToHeader(&message, &header)
 	err = websocket.JSON.Send(server.Conn, &header)
