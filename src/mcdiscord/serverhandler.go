@@ -21,7 +21,7 @@ func NewServerHandler(config *Config, mcdiscord *McDiscord) *ServerHandler {
 
 func (discord *ServerHandler) AddServer(address NetLocation, name string) error {
 	server := NewMcServer(address, GetLocalIP(), name, discord.mcdiscord.Discord.Input)
-	err := server.net.Connect()
+	err := server.net.StartConnectLoop()
 	if err != nil {
 		return err
 	}

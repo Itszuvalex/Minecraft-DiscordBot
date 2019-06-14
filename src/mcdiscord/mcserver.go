@@ -3,6 +3,7 @@ package mcdiscord
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"golang.org/x/net/websocket"
@@ -18,6 +19,14 @@ const (
 	Starting State = 1
 	// Running indicates the server is ready for players to connect to.
 	Running State = 2
+)
+
+type ConnectionStatus int
+
+const (
+	Disconnected ConnectionStatus = 0
+	Connecting   ConnectionStatus = 1
+	Connected    ConnectionStatus = 2
 )
 
 type McServerData struct {
@@ -39,6 +48,10 @@ type NetLocation struct {
 	Port    int    `json:"port"`
 }
 
+const (
+	ConsecutiveErrorMax = 5
+)
+
 type McServerNet struct {
 	Location    NetLocation
 	Origin      string
@@ -46,6 +59,9 @@ type McServerNet struct {
 	JsonHandler *JsonHandler
 	JsonChan    chan Header
 	stopchan    chan bool
+	Status      ConnectionStatus
+	errcount    int
+	mutex       sync.Mutex
 }
 
 type McServer struct {
@@ -63,6 +79,7 @@ func NewMcServer(location NetLocation, origin string, name string, msgchan chan 
 			JsonHandler: NewJsonHandler(),
 			JsonChan:    make(chan Header, 40),
 			stopchan:    make(chan bool, 2),
+			Status:      Disconnected,
 		},
 		McServerData{Name: name},
 		name,
@@ -94,15 +111,72 @@ func NewMcServer(location NetLocation, origin string, name string, msgchan chan 
 	return server
 }
 
+func (server *McServerNet) StartConnectLoop() error {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
+	if server.Status != Disconnected {
+		return nil
+	}
+
+	fmt.Println(fmt.Sprintf("Starting to connect to server %s:%d", server.Location.Address, server.Location.Port))
+	server.Status = Connecting
+
+	go func() {
+		for {
+			server.mutex.Lock()
+			status := server.Status
+			server.mutex.Unlock()
+
+			if status != Connecting {
+				break
+			}
+
+			err := server.Connect()
+			if err == nil {
+				break
+			}
+
+			timer := time.NewTimer(15 * time.Second)
+			<-timer.C
+		}
+	}()
+
+	return nil
+}
+
+func (server *McServerNet) HandleError(err error) error {
+
+	if err != nil {
+		fmt.Println(fmt.Sprintf("Encountered error on server %s:%d, ", server.Location.Address, server.Location.Port), err)
+		server.mutex.Lock()
+		server.errcount++
+		errCount := server.errcount
+		server.mutex.Unlock()
+		if errCount > ConsecutiveErrorMax {
+			fmt.Println(fmt.Sprintf("Too many errors encountered, closing and restarting connection to server %s:%d", server.Location.Address, server.Location.Port))
+			server.Close()
+			server.StartConnectLoop()
+		}
+	} else {
+		server.mutex.Lock()
+		server.errcount = 0
+		server.mutex.Unlock()
+	}
+	return err
+}
+
 func (server *McServerNet) Connect() error {
 	var err error
 	server.Conn, err = websocket.Dial(fmt.Sprintf("ws://%s:%d", server.Location.Address, server.Location.Port), "", fmt.Sprintf("http://%s", server.Origin))
 	if err != nil {
-		fmt.Println("Error connectiong to server, ", err)
+		fmt.Println("Error connecting to server, ", err)
 		return err
 	}
 
 	fmt.Println("Successfully connected to server")
+	server.mutex.Lock()
+	server.Status = Connected
+	server.mutex.Unlock()
 
 	go server.handleMessages()
 	go server.handleInput()
@@ -111,11 +185,7 @@ func (server *McServerNet) Connect() error {
 	message := Message{Timestamp: t.Format(time.Stamp), Message: "Discord Bot: Successfully connected to server."}
 	var header Header
 	MarshallMessageToHeader(&message, &header)
-	err = websocket.JSON.Send(server.Conn, &header)
-	if err != nil {
-		server.Close()
-		return err
-	}
+	server.HandleError(websocket.JSON.Send(server.Conn, &header))
 
 	fmt.Println("Successfully sent bytes to server")
 
@@ -123,6 +193,8 @@ func (server *McServerNet) Connect() error {
 }
 
 func (server *McServerNet) Close() error {
+	server.Status = Disconnected
+	server.errcount = 0
 	server.stopchan <- true
 	server.stopchan <- true
 	return server.Conn.Close()
@@ -135,7 +207,7 @@ func (server *McServerNet) handleMessages() {
 			return
 		default:
 			var header Header
-			websocket.JSON.Receive(server.Conn, &header)
+			server.HandleError(websocket.JSON.Receive(server.Conn, &header))
 			server.JsonHandler.HandleJson(header)
 		}
 	}
@@ -147,7 +219,7 @@ func (server *McServerNet) handleInput() {
 		case <-server.stopchan:
 			return
 		case header := <-server.JsonChan:
-			websocket.JSON.Send(server.Conn, &header)
+			server.HandleError(websocket.JSON.Send(server.Conn, &header))
 		}
 	}
 }
