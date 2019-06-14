@@ -61,7 +61,7 @@ func NewDiscordHandler(token string, masterconfig api.IConfig) (*DiscordHandler,
 		commandHandlers: make(map[string]commandHandler),
 		config: DiscordHandlerConfig{
 			ChannelId:   "",
-			ControlChar: ';',
+			ControlChar: '!',
 		},
 		Input:        make(chan api.MessageWithSender, BufferSize),
 		Output:       make(chan api.MessageWithSender, BufferSize),
