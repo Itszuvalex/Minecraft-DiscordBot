@@ -10,7 +10,7 @@
                 "isDefault": true
             },
             "type": "shell",
-            "command": "go build main",
+            "command": "go build cmd/mcdiscord/main.go",
             "problemMatcher": [
                 "$go"
             ]
