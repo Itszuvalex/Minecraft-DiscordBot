@@ -1,4 +1,4 @@
-package mcdiscord
+package discord
 
 import (
 	"encoding/json"
@@ -52,7 +52,7 @@ func NewDiscordHandler(token string, mcdiscord *McDiscord) (*DiscordHandler, err
 		commandHandlers: make(map[string]CommandHandler),
 		config: DiscordHandlerConfig{
 			ChannelId:   "",
-			ControlChar: '!',
+			ControlChar: ';',
 		},
 		Input:     make(chan MessageWithSender, BufferSize),
 		Output:    make(chan MessageWithSender, BufferSize),
@@ -154,41 +154,10 @@ func (discord *DiscordHandler) messageCreate(s *discordgo.Session, m *discordgo.
 
 	go func() {
 		println("Received message: ", m.Content, ", from user: ", m.Author.Username)
-
-		if m.Content == "ping" {
-			s.ChannelMessageSend(m.ChannelID, m.Author.Username+": Pong!")
-		}
-
-		if strings.HasPrefix(m.Content, string(discord.config.ControlChar)) {
-			ispace := strings.Index(m.Content, " ")
-			var command, data string
-			if ispace > 0 {
-				command = m.Content[1:ispace]
-				data = m.Content[ispace+1:]
-			} else {
-				command = m.Content[1:]
-				data = ""
-			}
-
-			println("Received command: ", command, ", from user: ", m.Author.Username, ", with data: ", data)
-
-			handler, ok := discord.commandHandlers[command]
-			if !ok {
-				println("No handler registered for command:", command)
-				return
-			}
-
-			err := handler(data, m)
+		if discord.isCommandMessage(m) {
+			err := discord.handleCommandMessage(s, m)
 			if err != nil {
-				err := s.MessageReactionAdd(m.Message.ChannelID, m.Message.ID, Emoji_X)
-				if err != nil {
-					fmt.Println("Error adding reaction, ", err)
-				}
-			} else {
-				err := s.MessageReactionAdd(m.Message.ChannelID, m.Message.ID, Emoji_Check)
-				if err != nil {
-					fmt.Println("Error adding reaction, ", err)
-				}
+
 			}
 		} else {
 			if m.Message.ChannelID == discord.config.ChannelId {
@@ -283,4 +252,47 @@ func (discord *DiscordHandler) handleConfigRead(data json.RawMessage) error {
 
 func (discord *DiscordHandler) handleConfigWrite() (json.RawMessage, error) {
 	return json.Marshal(&discord.config)
+}
+
+func (discord *DiscordHandler) isCommandMessage(m *discordgo.MessageCreate) bool {
+	return strings.HasPrefix(m.Content, string(discord.config.ControlChar))
+}
+
+func (discord *DiscordHandler) parseCommandMessage(m *discordgo.MessageCreate) (string, string) {
+	var command, data string
+	ispace := strings.Index(m.Content, " ")
+	if ispace > 0 {
+		command = m.Content[1:ispace]
+		data = m.Content[ispace+1:]
+	} else {
+		command = m.Content[1:]
+		data = ""
+	}
+	return command, data
+}
+
+func (discord *DiscordHandler) handleCommandMessage(s *discordgo.Session, m *discordgo.MessageCreate) error {
+	command, data := discord.parseCommandMessage(m)
+
+	println("Received command: ", command, ", from user: ", m.Author.Username, ", with data: ", data)
+
+	handler, ok := discord.commandHandlers[command]
+	if !ok {
+		println("No handler registered for command:", command)
+		return fmt.Errorf("Unknown command: %s", command)
+	}
+
+	err := handler(data, m)
+	if err != nil {
+		err := s.MessageReactionAdd(m.Message.ChannelID, m.Message.ID, Emoji_X)
+		if err != nil {
+			fmt.Println("Error adding reaction, ", err)
+		}
+	} else {
+		err := s.MessageReactionAdd(m.Message.ChannelID, m.Message.ID, Emoji_Check)
+		if err != nil {
+			fmt.Println("Error adding reaction, ", err)
+		}
+	}
+	return nil
 }

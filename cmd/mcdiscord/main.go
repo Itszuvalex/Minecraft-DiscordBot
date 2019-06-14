@@ -1,4 +1,4 @@
-package main
+package main // github.com/Itszuvalex/Minecraft-DiscordBot
 
 import (
 	"flag"

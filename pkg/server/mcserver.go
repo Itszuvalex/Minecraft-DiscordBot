@@ -1,4 +1,4 @@
-package mcdiscord
+package server
 
 import (
 	"errors"
