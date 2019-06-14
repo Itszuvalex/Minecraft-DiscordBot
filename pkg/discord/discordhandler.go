@@ -46,7 +46,7 @@ func (d *DiscordHandler) SetServerHandler(handler api.IServerHandler) {
 
 type DiscordHandlerConfig struct {
 	ChannelId   string `json:"channelId"`
-	ControlChar rune   `json:"controlChar"`
+	ControlChar string `json:"controlChar"`
 }
 
 // NewDiscordHandler Creates a new DiscordHandler given a bot Token
@@ -61,7 +61,7 @@ func NewDiscordHandler(token string, masterconfig api.IConfig) (*DiscordHandler,
 		commandHandlers: make(map[string]commandHandler),
 		config: DiscordHandlerConfig{
 			ChannelId:   "",
-			ControlChar: ';',
+			ControlChar: "!",
 		},
 		Input:        make(chan api.MessageWithSender, BufferSize),
 		Output:       make(chan api.MessageWithSender, BufferSize),
@@ -264,7 +264,7 @@ func (discord *DiscordHandler) handleConfigWrite() (json.RawMessage, error) {
 }
 
 func (discord *DiscordHandler) isCommandMessage(m *discordgo.MessageCreate) bool {
-	return strings.HasPrefix(m.Content, string(discord.config.ControlChar))
+	return strings.HasPrefix(m.Content, discord.config.ControlChar)
 }
 
 func (discord *DiscordHandler) parseCommandMessage(m *discordgo.MessageCreate) (string, string) {
