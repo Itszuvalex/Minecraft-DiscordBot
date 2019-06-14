@@ -5,6 +5,5 @@ docker run --rm \
     -w /usr/src/mcdiscord \
     -e GOOS=linux \
     -e GOARCH=amd64 \
-    -e GOPATH=/usr/src/mcdiscord \
     golang:latest \
     bash hooks/pre_build_build.sh
