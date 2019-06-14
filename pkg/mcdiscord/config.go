@@ -5,40 +5,39 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+
+	"github.com/itszuvalex/mcdiscord/pkg/api"
 )
 
-type ConfigReadHandler func(data json.RawMessage) error
-type ConfigWriteHandler func() (json.RawMessage, error)
-
-type Config struct {
+type configFile struct {
 	File          string
-	ReadHandlers  map[string]ConfigReadHandler
-	WriteHandlers map[string]ConfigWriteHandler
+	ReadHandlers  map[string]api.ConfigReadHandler
+	WriteHandlers map[string]api.ConfigWriteHandler
 }
 
-func NewConfig(file string) *Config {
-	return &Config{
+func NewConfig(file string) api.IConfig {
+	return &configFile{
 		File:          file,
-		ReadHandlers:  make(map[string]ConfigReadHandler),
-		WriteHandlers: make(map[string]ConfigWriteHandler),
+		ReadHandlers:  make(map[string]api.ConfigReadHandler),
+		WriteHandlers: make(map[string]api.ConfigWriteHandler),
 	}
 }
 
-func (config *Config) AddReadHandler(key string, handler ConfigReadHandler) {
-	config.ReadHandlers[key] = handler
+func (cfile *configFile) AddReadHandler(key string, handler api.ConfigReadHandler) {
+	cfile.ReadHandlers[key] = handler
 }
 
-func (config *Config) AddWriteHandler(key string, handler ConfigWriteHandler) {
-	config.WriteHandlers[key] = handler
+func (cfile *configFile) AddWriteHandler(key string, handler api.ConfigWriteHandler) {
+	cfile.WriteHandlers[key] = handler
 }
 
-func (config *Config) Read() error {
-	_, err := os.Stat(config.File)
+func (cfile *configFile) Read() error {
+	_, err := os.Stat(cfile.File)
 	if os.IsNotExist(err) {
 		return nil
 	}
 
-	file, err := os.Open(config.File)
+	file, err := os.Open(cfile.File)
 	if err != nil {
 		return err
 	}
@@ -56,7 +55,7 @@ func (config *Config) Read() error {
 	}
 
 	for key := range innerFields {
-		if handler, ok := config.ReadHandlers[key]; ok {
+		if handler, ok := cfile.ReadHandlers[key]; ok {
 			err = handler(innerFields[key])
 			if err != nil {
 				fmt.Println("Error when handling json:"+key+",", err)
@@ -67,16 +66,16 @@ func (config *Config) Read() error {
 	return nil
 }
 
-func (config *Config) Write() error {
-	file, err := os.Create(config.File)
+func (cfile *configFile) Write() error {
+	file, err := os.Create(cfile.File)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
 	innerFields := make(map[string]json.RawMessage)
-	for key := range config.WriteHandlers {
-		json, err := config.WriteHandlers[key]()
+	for key := range cfile.WriteHandlers {
+		json, err := cfile.WriteHandlers[key]()
 		if err != nil {
 			fmt.Println("Error when writing json:"+key+",", err)
 		}

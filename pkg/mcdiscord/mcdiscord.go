@@ -3,25 +3,28 @@ package mcdiscord // "github.com/itszuvalex/mcdiscord/pkg/mcdiscord"
 import (
 	"fmt"
 
-	"github.com/itszuvalex/mcdiscord/pkg/discord"
+	"github.com/itszuvalex/mcdiscord/pkg/api"
+	mydisc "github.com/itszuvalex/mcdiscord/pkg/discord"
+	"github.com/itszuvalex/mcdiscord/pkg/server"
 )
 
 type McDiscord struct {
-	Discord *discord.DiscordHandler
-	Servers *ServerHandler
-	Config  *Config
+	Discord api.IDiscordHandler
+	Servers api.IServerHandler
+	Config  api.IConfig
 }
 
 func New(token string, configFile string) (*McDiscord, error) {
 	discord := new(McDiscord)
 	discord.Config = NewConfig(configFile)
-	discordhandler, err := NewDiscordHandler(token, discord)
+	discordhandler, err := mydisc.NewDiscordHandler(token, discord.Config)
 	if err != nil {
 		fmt.Println("Error creating Discord Handler session, ", err)
 		return nil, err
 	}
 	discord.Discord = discordhandler
-	discord.Servers = NewServerHandler(discord.Config, discord)
+	discord.Servers = server.NewServerHandler(discord.Config, discord.Discord)
+	discord.Discord.SetServerHandler(discord.Servers)
 
 	err = discord.Config.Read()
 	if err != nil {

@@ -3,29 +3,35 @@ package server // "github.com/itszuvalex/mcdiscord/pkg/server"
 import (
 	"fmt"
 	"net"
+
+	"github.com/itszuvalex/mcdiscord/pkg/api"
 )
 
 type ServerHandler struct {
-	Servers    map[NetLocation]*McServer
-	mainconfig *Config
-	mcdiscord  *McDiscord
+	ServerMap      map[api.NetLocation]api.IServer
+	mainconfig     api.IConfig
+	discordhandler api.IDiscordHandler
 }
 
-func NewServerHandler(config *Config, mcdiscord *McDiscord) *ServerHandler {
+func NewServerHandler(config api.IConfig, discordhandler api.IDiscordHandler) api.IServerHandler {
 	return &ServerHandler{
-		Servers:    make(map[NetLocation]*McServer),
-		mainconfig: config,
-		mcdiscord:  mcdiscord,
+		ServerMap:      make(map[api.NetLocation]api.IServer),
+		mainconfig:     config,
+		discordhandler: discordhandler,
 	}
 }
 
-func (discord *ServerHandler) AddServer(address NetLocation, name string) error {
-	server := NewMcServer(address, GetLocalIP(), name, discord.mcdiscord.Discord.Input)
-	err := server.net.StartConnectLoop()
+func (discord *ServerHandler) Servers() map[api.NetLocation]api.IServer {
+	return discord.ServerMap
+}
+
+func (discord *ServerHandler) AddServer(address api.NetLocation, name string) error {
+	server := NewMcServer(address, GetLocalIP(), name, discord.discordhandler.ChatInput())
+	err := server.StartConnectLoop()
 	if err != nil {
 		return err
 	}
-	discord.Servers[address] = server
+	discord.ServerMap[address] = server
 	fmt.Println("Added server at: ", address.Address, ":", address.Port)
 	return discord.mainconfig.Write()
 }
@@ -49,8 +55,8 @@ func GetLocalIP() string {
 
 func (discord *ServerHandler) Close() []error {
 	var errors []error
-	for _, server := range discord.Servers {
-		err := server.net.Close()
+	for _, server := range discord.ServerMap {
+		err := server.Close()
 		if err != nil {
 			errors = append(errors, err)
 		}
@@ -58,30 +64,30 @@ func (discord *ServerHandler) Close() []error {
 	return errors
 }
 
-func (discord *ServerHandler) RemoveServer(address NetLocation) error {
-	server, ok := discord.Servers[address]
+func (discord *ServerHandler) RemoveServer(address api.NetLocation) error {
+	server, ok := discord.ServerMap[address]
 	if !ok {
 		return fmt.Errorf("Could not find server of address %s:%d", address.Address, address.Port)
 	}
-	server.net.Close()
-	delete(discord.Servers, address)
+	server.Close()
+	delete(discord.ServerMap, address)
 	return nil
 }
 
 func (discord *ServerHandler) RemoveServerByName(name string) error {
-	for loc, server := range discord.Servers {
-		if server.Name == name {
-			server.net.Close()
-			delete(discord.Servers, loc)
+	for loc, server := range discord.ServerMap {
+		if server.Name() == name {
+			server.Close()
+			delete(discord.ServerMap, loc)
 			return nil
 		}
 	}
 	return fmt.Errorf("Could not find a server of name %s", name)
 }
 
-func (handler *ServerHandler) SendPacketToAllServers(header Header) {
-	for loc, server := range handler.Servers {
+func (handler *ServerHandler) SendPacketToAllServers(header api.Header) {
+	for loc, server := range handler.ServerMap {
 		fmt.Println("Broadcasting message of type:", header.Type, " to server:", loc.Address)
-		server.net.JsonChan <- header
+		server.JsonChan() <- header
 	}
 }

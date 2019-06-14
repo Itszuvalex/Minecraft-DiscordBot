@@ -6,87 +6,68 @@ import (
 	"sync"
 	"time"
 
-	"github.com/itszuvalex/mcdiscord/pkg/mcdiscord"
+	"github.com/itszuvalex/mcdiscord/pkg/api"
 	"golang.org/x/net/websocket"
 )
-
-// State exists because Go doesn't have enums for some reason.
-type State int
-
-const (
-	// NotRunning indicates something...
-	NotRunning State = 0
-	// Starting indicates the server is running but not ready for players yet.
-	Starting State = 1
-	// Running indicates the server is ready for players to connect to.
-	Running State = 2
-)
-
-type ConnectionStatus int
-
-const (
-	Disconnected ConnectionStatus = 0
-	Connecting   ConnectionStatus = 1
-	Connected    ConnectionStatus = 2
-)
-
-type McServerData struct {
-	Memory      int             `json:"memory"`
-	MemoryMax   int             `json:"memorymax"`
-	Storage     uint64          `json:"storage"`
-	StorageMax  uint64          `json:"storagemax"`
-	Players     []string        `json:"players"`
-	PlayerCount int             `json:"playercount"`
-	PlayerMax   int             `json:"playermax"`
-	Tps         map[int]float32 `json:"tps"`
-	Name        string          `json:"name"`
-	Status      string          `json:"status"`
-	ActiveTime  int             `json:"activetime"`
-}
-
-type NetLocation struct {
-	Address string `json:"address"`
-	Port    int    `json:"port"`
-}
 
 const (
 	ConsecutiveErrorMax = 5
 )
 
-type McServerNet struct {
-	Location    NetLocation
+type mcServerNet struct {
+	Location    api.NetLocation
 	Origin      string
 	Conn        *websocket.Conn
-	JsonHandler *mcdiscord.JsonHandler
-	JsonChan    chan mcdiscord.Header
+	JsonHandler *api.JsonHandler
+	JsonChan    chan api.Header
 	stopchan    chan bool
-	Status      ConnectionStatus
+	Status      api.ConnectionStatus
 	errcount    int
 	mutex       sync.Mutex
 }
 
-type McServer struct {
-	net  McServerNet
-	data McServerData
-	Name string
+type mcServer struct {
+	net  mcServerNet
+	data api.McServerData
+	name string
 }
 
-func NewMcServer(location NetLocation, origin string, name string, msgchan chan MessageWithSender) *McServer {
-	server := &McServer{
-		McServerNet{
+func (mcs *mcServer) Location() api.NetLocation {
+	return mcs.net.Location
+}
+
+func (mcs *mcServer) Name() string {
+	return mcs.name
+}
+
+func (mcs *mcServer) StartConnectLoop() error {
+	return mcs.net.StartConnectLoop()
+}
+
+func (mcs *mcServer) Close() error {
+	return mcs.net.Close()
+}
+
+func (mcs *mcServer) JsonChan() chan api.Header {
+	return mcs.net.JsonChan
+}
+
+func NewMcServer(location api.NetLocation, origin string, name string, msgchan chan api.MessageWithSender) api.IServer {
+	server := &mcServer{
+		mcServerNet{
 			Location:    location,
 			Origin:      origin,
 			Conn:        nil,
-			JsonHandler: mcdiscord.NewJsonHandler(),
-			JsonChan:    make(chan Header, 40),
+			JsonHandler: api.NewJsonHandler(),
+			JsonChan:    make(chan api.Header, 40),
 			stopchan:    make(chan bool, 2),
-			Status:      Disconnected,
+			Status:      api.Disconnected,
 		},
-		McServerData{Name: name},
+		api.McServerData{Name: name},
 		name,
 	}
-	server.net.JsonHandler.RegisterHandler(MessageType, func(obj interface{}) error {
-		message, ok := obj.(*Message)
+	server.net.JsonHandler.RegisterHandler(api.MessageType, func(obj interface{}) error {
+		message, ok := obj.(*api.Message)
 		if !ok {
 			fmt.Println("MessageHandler passed non *Message obj")
 			return errors.New("MessageHandler passed non *Message obj")
@@ -94,12 +75,12 @@ func NewMcServer(location NetLocation, origin string, name string, msgchan chan 
 
 		fmt.Println(message.Timestamp, "  :", message.Message)
 
-		msgchan <- MessageWithSender{Sender: "", Message: message.Message}
+		msgchan <- api.MessageWithSender{Sender: "", Message: message.Message}
 
 		return nil
 	})
-	server.net.JsonHandler.RegisterHandler(StatusType, func(obj interface{}) error {
-		message, ok := obj.(*McServerData)
+	server.net.JsonHandler.RegisterHandler(api.StatusType, func(obj interface{}) error {
+		message, ok := obj.(*api.McServerData)
 		if !ok {
 			fmt.Println("MessageHandler passed non *McServerData obj")
 			return errors.New("MessageHandler passed non *McServerData obj")
@@ -112,15 +93,15 @@ func NewMcServer(location NetLocation, origin string, name string, msgchan chan 
 	return server
 }
 
-func (server *McServerNet) StartConnectLoop() error {
+func (server *mcServerNet) StartConnectLoop() error {
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
-	if server.Status != Disconnected {
+	if server.Status != api.Disconnected {
 		return nil
 	}
 
 	fmt.Println(fmt.Sprintf("Starting to connect to server %s:%d", server.Location.Address, server.Location.Port))
-	server.Status = Connecting
+	server.Status = api.Connecting
 
 	go func() {
 		for {
@@ -128,7 +109,7 @@ func (server *McServerNet) StartConnectLoop() error {
 			status := server.Status
 			server.mutex.Unlock()
 
-			if status != Connecting {
+			if status != api.Connecting {
 				break
 			}
 
@@ -145,7 +126,7 @@ func (server *McServerNet) StartConnectLoop() error {
 	return nil
 }
 
-func (server *McServerNet) HandleError(err error) error {
+func (server *mcServerNet) HandleError(err error) error {
 
 	if err != nil {
 		fmt.Println(fmt.Sprintf("Encountered error on server %s:%d, ", server.Location.Address, server.Location.Port), err)
@@ -166,7 +147,7 @@ func (server *McServerNet) HandleError(err error) error {
 	return err
 }
 
-func (server *McServerNet) Connect() error {
+func (server *mcServerNet) Connect() error {
 	var err error
 	server.Conn, err = websocket.Dial(fmt.Sprintf("ws://%s:%d", server.Location.Address, server.Location.Port), "", fmt.Sprintf("http://%s", server.Origin))
 	if err != nil {
@@ -176,16 +157,16 @@ func (server *McServerNet) Connect() error {
 
 	fmt.Println("Successfully connected to server")
 	server.mutex.Lock()
-	server.Status = Connected
+	server.Status = api.Connected
 	server.mutex.Unlock()
 
 	go server.handleMessages()
 	go server.handleInput()
 
 	t := time.Now()
-	message := Message{Timestamp: t.Format(time.Stamp), Message: "Discord Bot: Successfully connected to server."}
-	var header Header
-	MarshallMessageToHeader(&message, &header)
+	message := api.Message{Timestamp: t.Format(time.Stamp), Message: "Discord Bot: Successfully connected to server."}
+	var header api.Header
+	api.MarshallMessageToHeader(&message, &header)
 	server.HandleError(websocket.JSON.Send(server.Conn, &header))
 
 	fmt.Println("Successfully sent bytes to server")
@@ -193,28 +174,28 @@ func (server *McServerNet) Connect() error {
 	return nil
 }
 
-func (server *McServerNet) Close() error {
-	server.Status = Disconnected
+func (server *mcServerNet) Close() error {
+	server.Status = api.Disconnected
 	server.errcount = 0
 	server.stopchan <- true
 	server.stopchan <- true
 	return server.Conn.Close()
 }
 
-func (server *McServerNet) handleMessages() {
+func (server *mcServerNet) handleMessages() {
 	for {
 		select {
 		case <-server.stopchan:
 			return
 		default:
-			var header Header
+			var header api.Header
 			server.HandleError(websocket.JSON.Receive(server.Conn, &header))
 			server.JsonHandler.HandleJson(header)
 		}
 	}
 }
 
-func (server *McServerNet) handleInput() {
+func (server *mcServerNet) handleInput() {
 	for {
 		select {
 		case <-server.stopchan:

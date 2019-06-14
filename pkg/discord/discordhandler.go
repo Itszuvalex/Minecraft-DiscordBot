@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/itszuvalex/mcdiscord/pkg/mcdiscord"
+	"github.com/itszuvalex/mcdiscord/pkg/api"
 )
 
 const (
@@ -19,21 +19,29 @@ const (
 )
 
 // CommandHandler Type of function that receives new message callbacks from discord
-type CommandHandler func(string, *discordgo.MessageCreate) error
-
-type MessageWithSender struct {
-	Message string
-	Sender  string
-}
+type commandHandler func(string, *discordgo.MessageCreate) error
 
 // DiscordHandler Struct that contains all Discord-related information and handles messages to/from Discord
 type DiscordHandler struct {
 	session         *discordgo.Session
-	commandHandlers map[string]CommandHandler
+	commandHandlers map[string]commandHandler
 	config          DiscordHandlerConfig
-	Input, Output   chan MessageWithSender
+	Input, Output   chan api.MessageWithSender
 	stopchan        chan bool
-	mcdiscord       *mcdiscord.McDiscord
+	masterconfig    api.IConfig
+	serverhandler   api.IServerHandler
+}
+
+func (d *DiscordHandler) ChatInput() chan api.MessageWithSender {
+	return d.Input
+}
+
+func (d *DiscordHandler) ChatOutput() chan api.MessageWithSender {
+	return d.Output
+}
+
+func (d *DiscordHandler) SetServerHandler(handler api.IServerHandler) {
+	d.serverhandler = handler
 }
 
 type DiscordHandlerConfig struct {
@@ -42,7 +50,7 @@ type DiscordHandlerConfig struct {
 }
 
 // NewDiscordHandler Creates a new DiscordHandler given a bot Token
-func NewDiscordHandler(token string, mcdiscord *mcdiscord.McDiscord) (*DiscordHandler, error) {
+func NewDiscordHandler(token string, masterconfig api.IConfig) (*DiscordHandler, error) {
 	session, err := discordgo.New("Bot " + token)
 	if err != nil {
 		fmt.Println("Error creating Discord session, ", err)
@@ -50,15 +58,15 @@ func NewDiscordHandler(token string, mcdiscord *mcdiscord.McDiscord) (*DiscordHa
 	}
 	handler := &DiscordHandler{
 		session:         session,
-		commandHandlers: make(map[string]CommandHandler),
+		commandHandlers: make(map[string]commandHandler),
 		config: DiscordHandlerConfig{
 			ChannelId:   "",
 			ControlChar: ';',
 		},
-		Input:     make(chan MessageWithSender, BufferSize),
-		Output:    make(chan MessageWithSender, BufferSize),
-		stopchan:  make(chan bool, 2),
-		mcdiscord: mcdiscord,
+		Input:        make(chan api.MessageWithSender, BufferSize),
+		Output:       make(chan api.MessageWithSender, BufferSize),
+		stopchan:     make(chan bool, 2),
+		masterconfig: masterconfig,
 	}
 
 	// Add handlers
@@ -66,15 +74,15 @@ func NewDiscordHandler(token string, mcdiscord *mcdiscord.McDiscord) (*DiscordHa
 	//handler.AddHandler(handler.messageReactionAdd)
 
 	// Add command handlers
-	handler.commandHandlers = make(map[string]CommandHandler)
+	handler.commandHandlers = make(map[string]commandHandler)
 	handler.AddCommandHandler("json", handler.handleJsonTest)
 	handler.AddCommandHandler("setchannel", handler.handleSetChannel)
 	handler.AddCommandHandler("ls", handler.handleListServers)
 	handler.AddCommandHandler("as", handler.handleAddServer)
 	handler.AddCommandHandler("rm", handler.handleRemoveServer)
 
-	handler.mcdiscord.Config.AddReadHandler(ConfigKey, handler.handleConfigRead)
-	handler.mcdiscord.Config.AddWriteHandler(ConfigKey, handler.handleConfigWrite)
+	handler.masterconfig.AddReadHandler(ConfigKey, handler.handleConfigRead)
+	handler.masterconfig.AddWriteHandler(ConfigKey, handler.handleConfigWrite)
 
 	return handler, nil
 }
@@ -114,13 +122,13 @@ func (discord *DiscordHandler) HandleOutputChannel() {
 		case <-discord.stopchan:
 			return
 		case o := <-discord.Output:
-			command := Command{fmt.Sprintf("say %s: %s", o.Sender, o.Message)}
-			var header Header
-			err := MarshalCommandToHeader(&command, &header)
+			command := api.Command{fmt.Sprintf("say %s: %s", o.Sender, o.Message)}
+			var header api.Header
+			err := api.MarshalCommandToHeader(&command, &header)
 			if err != nil {
 				fmt.Println("Error marshalling command", err)
 			}
-			discord.mcdiscord.Servers.SendPacketToAllServers(header)
+			discord.serverhandler.SendPacketToAllServers(header)
 		}
 	}
 }
@@ -131,7 +139,7 @@ func (discord *DiscordHandler) Close() error {
 	return discord.session.Close()
 }
 
-func (discord *DiscordHandler) AddCommandHandler(command string, handler CommandHandler) error {
+func (discord *DiscordHandler) AddCommandHandler(command string, handler commandHandler) error {
 	if _, ok := discord.commandHandlers[command]; ok {
 		fmt.Println("Command handler already registered for command:", command)
 		return errors.New("Command handler already registered for command:" + command)
@@ -163,7 +171,7 @@ func (discord *DiscordHandler) messageCreate(s *discordgo.Session, m *discordgo.
 		} else {
 			if m.Message.ChannelID == discord.config.ChannelId {
 				println("Broadcasting message from user: ", m.Author.Username, ", with message: ", m.Content)
-				discord.Output <- MessageWithSender{Message: m.Content, Sender: m.Author.Username}
+				discord.Output <- api.MessageWithSender{Message: m.Content, Sender: m.Author.Username}
 			}
 		}
 	}()
@@ -171,7 +179,7 @@ func (discord *DiscordHandler) messageCreate(s *discordgo.Session, m *discordgo.
 
 func (discord *DiscordHandler) handleSetChannel(data string, m *discordgo.MessageCreate) error {
 	discord.config.ChannelId = m.ChannelID
-	return discord.mcdiscord.Config.Write()
+	return discord.masterconfig.Write()
 }
 
 func (discord *DiscordHandler) handleJsonTest(data string, m *discordgo.MessageCreate) error {
@@ -183,10 +191,10 @@ func (discord *DiscordHandler) handleListServers(data string, m *discordgo.Messa
 		return errors.New("Wrong channel")
 	}
 	var serverfields []*discordgo.MessageEmbedField
-	for _, server := range discord.mcdiscord.Servers.Servers {
+	for _, server := range discord.serverhandler.Servers() {
 		serverfields = append(serverfields, &discordgo.MessageEmbedField{
-			Name:  fmt.Sprintf("%s", server.data.Name),
-			Value: fmt.Sprintf("%s:%d", server.net.Location.Address, server.net.Location.Port),
+			Name:  fmt.Sprintf("%s", server.Name()),
+			Value: fmt.Sprintf("%s:%d", server.Location().Address, server.Location().Port),
 		})
 	}
 	embed := &discordgo.MessageEmbed{
@@ -214,14 +222,14 @@ func (discord *DiscordHandler) handleAddServer(data string, m *discordgo.Message
 		return errors.New("Add server needs args {ip:port} {name}")
 	}
 
-	location, err := ParseNetLocation(args[0])
+	location, err := api.ParseNetLocation(args[0])
 	if err != nil {
 		fmt.Println("Add server could not parse NetLocation:", err)
 		return err
 	}
 
 	name := strings.Join(args[1:], " ")
-	err = discord.mcdiscord.Servers.AddServer(*location, name)
+	err = discord.serverhandler.AddServer(*location, name)
 	if err != nil {
 		fmt.Println("Add server could not add server", err)
 		return err
@@ -233,13 +241,13 @@ func (discord *DiscordHandler) handleRemoveServer(data string, m *discordgo.Mess
 		return errors.New("Wrong channel")
 	}
 	if strings.Contains(data, ":") {
-		location, err := ParseNetLocation(data)
+		location, err := api.ParseNetLocation(data)
 		if err != nil {
 			return err
 		}
-		return discord.mcdiscord.Servers.RemoveServer(*location)
+		return discord.serverhandler.RemoveServer(*location)
 	} else {
-		return discord.mcdiscord.Servers.RemoveServerByName(data)
+		return discord.serverhandler.RemoveServerByName(data)
 	}
 }
 

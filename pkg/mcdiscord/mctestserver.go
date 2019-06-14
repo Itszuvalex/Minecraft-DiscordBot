@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"golang.org/x/net/websocket"
+	"github.com/itszuvalex/mcdiscord/pkg/api"
 )
 
 type TestServer struct {
@@ -34,7 +35,7 @@ func (server *TestServer) Close() error {
 func (server *TestServer) handle(ws *websocket.Conn) {
 	fmt.Println("Received connection")
 	for {
-		var data Header
+		var data api.Header
 		err := websocket.JSON.Receive(ws, &data)
 		if err != nil {
 			return

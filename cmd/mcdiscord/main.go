@@ -1,4 +1,4 @@
-package main // "github.com/itszuvalex/mcdiscord"
+package main
 
 import (
 	"flag"
