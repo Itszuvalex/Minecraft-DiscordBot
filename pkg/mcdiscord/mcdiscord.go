@@ -1,11 +1,13 @@
-package mcdiscord
+package mcdiscord // "github.com/itszuvalex/mcdiscord/pkg/mcdiscord"
 
 import (
 	"fmt"
+
+	"github.com/itszuvalex/mcdiscord/pkg/discord"
 )
 
 type McDiscord struct {
-	Discord *DiscordHandler
+	Discord *discord.DiscordHandler
 	Servers *ServerHandler
 	Config  *Config
 }

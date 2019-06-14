@@ -1,16 +1,17 @@
-package main // github.com/Itszuvalex/Minecraft-DiscordBot
+package main // "github.com/itszuvalex/mcdiscord"
 
 import (
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"mcdiscord"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/itszuvalex/mcdiscord/pkg/mcdiscord"
 )
 
 const (

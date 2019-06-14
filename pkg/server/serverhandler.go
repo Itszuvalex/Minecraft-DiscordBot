@@ -1,4 +1,4 @@
-package server
+package server // "github.com/itszuvalex/mcdiscord/pkg/server"
 
 import (
 	"fmt"

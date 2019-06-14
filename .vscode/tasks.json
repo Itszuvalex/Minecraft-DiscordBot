@@ -13,12 +13,7 @@
             "command": "go build main",
             "problemMatcher": [
                 "$go"
-            ],
-            "options": {
-                "env": {
-                    "gopath": "${workspaceRoot}"
-                }
-            }
+            ]
         },
         {
             "label": "go run",

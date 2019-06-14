@@ -1,4 +1,4 @@
-package discord
+package discord // "github.com/itszuvalex/mcdiscord/pkg/discord"
 
 import (
 	"encoding/json"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/itszuvalex/mcdiscord/pkg/mcdiscord"
 )
 
 const (
@@ -32,7 +33,7 @@ type DiscordHandler struct {
 	config          DiscordHandlerConfig
 	Input, Output   chan MessageWithSender
 	stopchan        chan bool
-	mcdiscord       *McDiscord
+	mcdiscord       *mcdiscord.McDiscord
 }
 
 type DiscordHandlerConfig struct {
@@ -41,7 +42,7 @@ type DiscordHandlerConfig struct {
 }
 
 // NewDiscordHandler Creates a new DiscordHandler given a bot Token
-func NewDiscordHandler(token string, mcdiscord *McDiscord) (*DiscordHandler, error) {
+func NewDiscordHandler(token string, mcdiscord *mcdiscord.McDiscord) (*DiscordHandler, error) {
 	session, err := discordgo.New("Bot " + token)
 	if err != nil {
 		fmt.Println("Error creating Discord session, ", err)

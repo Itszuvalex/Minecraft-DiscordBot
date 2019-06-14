@@ -1,4 +1,4 @@
-package mcdiscord
+package mcdiscord // "github.com/itszuvalex/mcdiscord/pkg/mcdiscord"
 
 import (
 	"fmt"

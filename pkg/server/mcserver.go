@@ -1,4 +1,4 @@
-package server
+package server // "github.com/itszuvalex/mcdiscord/pkg/server"
 
 import (
 	"errors"
@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/itszuvalex/mcdiscord/pkg/mcdiscord"
 	"golang.org/x/net/websocket"
 )
 
@@ -56,8 +57,8 @@ type McServerNet struct {
 	Location    NetLocation
 	Origin      string
 	Conn        *websocket.Conn
-	JsonHandler *JsonHandler
-	JsonChan    chan Header
+	JsonHandler *mcdiscord.JsonHandler
+	JsonChan    chan mcdiscord.Header
 	stopchan    chan bool
 	Status      ConnectionStatus
 	errcount    int
@@ -76,7 +77,7 @@ func NewMcServer(location NetLocation, origin string, name string, msgchan chan 
 			Location:    location,
 			Origin:      origin,
 			Conn:        nil,
-			JsonHandler: NewJsonHandler(),
+			JsonHandler: mcdiscord.NewJsonHandler(),
 			JsonChan:    make(chan Header, 40),
 			stopchan:    make(chan bool, 2),
 			Status:      Disconnected,
