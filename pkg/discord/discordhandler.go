@@ -296,11 +296,13 @@ func (discord *DiscordHandler) handleCommandMessage(s *discordgo.Session, m *dis
 		err := s.MessageReactionAdd(m.Message.ChannelID, m.Message.ID, Emoji_X)
 		if err != nil {
 			fmt.Println("Error adding reaction, ", err)
+			return err
 		}
 	} else {
 		err := s.MessageReactionAdd(m.Message.ChannelID, m.Message.ID, Emoji_Check)
 		if err != nil {
 			fmt.Println("Error adding reaction, ", err)
+			return err
 		}
 	}
 	return nil
