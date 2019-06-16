@@ -81,10 +81,11 @@ func (cfile *configFile) Write() error {
 		}
 		innerFields[key] = json
 	}
-	data, err := json.Marshal(innerFields)
+	data, err := json.MarshalIndent(innerFields, "", "\t")
 	if err != nil {
 		return err
 	}
+
 	_, err = file.Write(data)
 	if err != nil {
 		return err

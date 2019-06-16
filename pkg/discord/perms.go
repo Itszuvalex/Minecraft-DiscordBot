@@ -23,9 +23,9 @@ func newPermManager() *PermManager {
 type PermNode struct {
 	NodeName    string                `json:"name"`
 	Fullname    string                `json:"fullname"`
-	Children    map[string]*PermNode  `json:"children"`
-	GuildPerms  map[string]*GuildPerm `json:"guildperms"`
 	Permdefault api.PermDefault       `json:"permdefault"`
+	GuildPerms  map[string]*GuildPerm `json:"guildperms"`
+	Children    map[string]*PermNode  `json:"children"`
 }
 
 type GuildPerm struct {
