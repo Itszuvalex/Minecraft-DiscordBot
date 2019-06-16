@@ -87,7 +87,11 @@ func (perm *PermManager) GetPermNodeByNodes(nodes []string) (api.IPermNode, erro
 	if err != nil {
 		return nil, err
 	}
-	return root.GetPermNodeByNodes(nodes[1:])
+	if len(nodes) > 1 {
+		return root.GetPermNodeByNodes(nodes[1:])
+	} else {
+		return root, nil
+	}
 }
 
 func (node *PermNode) GetGuildPerm(guildid string) (api.IGuildPerm, error) {
@@ -218,6 +222,7 @@ func (perm *PermManager) IsUserAllowed(nodepath, guildid, user string) (api.Perm
 		if err != nil {
 			return false, err
 		}
+		fmt.Println("Found explicit user setting:", user.PermAllowed(), " at path:", nodepath)
 		return user.PermAllowed(), nil
 	})
 }
@@ -232,6 +237,7 @@ func (perm *PermManager) IsRoleAllowed(nodepath, guildid, role string) (api.Perm
 		if err != nil {
 			return false, err
 		}
+		fmt.Println("Found explicit role setting:", role.PermAllowed(), " at path:", nodepath)
 		return role.PermAllowed(), nil
 	})
 }
@@ -241,18 +247,21 @@ func (perm *PermManager) isAllowed(nodepath string, checkFunc permhandler) (api.
 	implicit := false
 	implicitValue := false
 	implicitNode := ""
-	for i := 1; i <= len(nodes); i++ {
-		fmt.Println("Checking node:", strings.Join(nodes[:len(nodepath)-i], "."))
+	for i := 0; i < len(nodes); i++ {
+		subnodes := nodes[:len(nodes)-i]
+
+		fmt.Println("Checking node:", strings.Join(subnodes, "."))
 		// Walk up from the deepest node
-		node, err := perm.GetPermNodeByNodes(nodes[:len(nodepath)-i])
+		node, err := perm.GetPermNodeByNodes(subnodes)
 		if err != nil {
-			return api.PermCheck{false, strings.Join(nodes[:len(nodepath)-i], "."), false}, err
+			return api.PermCheck{false, strings.Join(subnodes, "."), false}, err
 		}
 
 		// Find explicit yes/no
+		// We only do NOT receive an error if we find an explicit
 		check, err := checkFunc(node)
-		if err != nil {
-			return api.PermCheck{check, strings.Join(nodes[:len(nodepath)-i], "."), true}, nil
+		if err == nil {
+			return api.PermCheck{check, strings.Join(subnodes, "."), true}, nil
 		}
 
 		// Explicits ANYWHERE in the path ovewrite ANY implicits found
@@ -264,11 +273,13 @@ func (perm *PermManager) isAllowed(nodepath string, checkFunc permhandler) (api.
 			case api.Allow:
 				implicit = true
 				implicitValue = true
-				implicitNode = strings.Join(nodes[:len(nodepath)-i], ".")
+				implicitNode = strings.Join(subnodes, ".")
+				fmt.Println("Found implicit Allow at:", implicitNode)
 			case api.Block:
 				implicit = true
 				implicitValue = false
-				implicitNode = strings.Join(nodes[:len(nodepath)-i], ".")
+				implicitNode = strings.Join(subnodes, ".")
+				fmt.Println("Found implicit Block at:", implicitNode)
 			case api.Inherit:
 			}
 		}
