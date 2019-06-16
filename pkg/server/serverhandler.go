@@ -91,3 +91,25 @@ func (handler *ServerHandler) SendPacketToAllServers(header api.Header) {
 		server.JsonChan() <- header
 	}
 }
+
+func (handler *ServerHandler) SendPacketToServer(header api.Header, address api.NetLocation) error {
+	server, ok := handler.ServerMap[address]
+	if !ok {
+		return fmt.Errorf("Could not find server of address %s:%d", address.Address, address.Port)
+	}
+	fmt.Println("Sent message, ", header, "to server: ", address)
+	server.JsonChan() <- header
+	return nil
+}
+
+func (handler *ServerHandler) SendPacketToServerByName(header api.Header, name string) error {
+	for _, server := range handler.ServerMap {
+		if server.Name() == name {
+			fmt.Println("Sent message, ", header, "to server: ", name)
+			server.JsonChan() <- header
+			return nil
+		}
+	}
+	fmt.Println("Could not find a server of name: ", name)
+	return fmt.Errorf("Could not find a server of name %s", name)
+}

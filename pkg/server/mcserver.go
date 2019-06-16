@@ -179,7 +179,10 @@ func (server *mcServerNet) Close() error {
 	server.errcount = 0
 	server.stopchan <- true
 	server.stopchan <- true
-	return server.Conn.Close()
+	if server.Conn != nil {
+		return server.Conn.Close()
+	}
+	return nil
 }
 
 func (server *mcServerNet) handleMessages() {

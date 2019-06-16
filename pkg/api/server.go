@@ -35,6 +35,8 @@ type IServerHandler interface {
 	RemoveServer(address NetLocation) error
 	RemoveServerByName(name string) error
 	SendPacketToAllServers(header Header)
+	SendPacketToServer(header Header, address NetLocation) error
+	SendPacketToServerByName(header Header, name string) error
 	Servers() map[NetLocation]IServer
 	Close() []error
 }
