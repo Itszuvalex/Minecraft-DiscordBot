@@ -380,8 +380,8 @@ func (discord *DiscordHandler) handleListPermissionsForNode(data string, s *disc
 			}
 
 			permFields = append(permFields, &discordgo.MessageEmbedField{
-				Name:   "User",
-				Value:  nametoshow + "\t" + strconv.FormatBool(perm.PermAllowed()),
+				Name:   nametoshow + "\t" + strconv.FormatBool(perm.PermAllowed()),
+				Value:  "User",
 				Inline: false,
 			})
 		}
