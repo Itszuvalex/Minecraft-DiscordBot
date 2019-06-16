@@ -32,6 +32,12 @@ func New(token string, configFile string) (*McDiscord, error) {
 		return nil, err
 	}
 
+	err = discord.Config.Write()
+	if err != nil {
+		fmt.Println("Error writing Config,", err)
+		return nil, err
+	}
+
 	return discord, nil
 }
 

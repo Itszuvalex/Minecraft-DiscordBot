@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/itszuvalex/mcdiscord/pkg/api"
@@ -25,19 +24,27 @@ type Command struct {
 	Handler     commandHandler
 }
 
+type ServerCommand struct {
+	Name        string
+	Usage       string
+	Description string
+	Handler     commandHandler
+}
+
 // CommandHandler Type of function that receives new message callbacks from discord
-type commandHandler func(string, *discordgo.MessageCreate) error
+type commandHandler func(string, *discordgo.Session, *discordgo.MessageCreate) error
 
 // DiscordHandler Struct that contains all Discord-related information and handles messages to/from Discord
 type DiscordHandler struct {
-	session       *discordgo.Session
-	Commands      map[string]Command
-	config        DiscordHandlerConfig
-	Input, Output chan api.MessageWithSender
-	stopchan      chan bool
-	masterconfig  api.IConfig
-	serverhandler api.IServerHandler
-	permhandler   api.IPermHandler
+	session        *discordgo.Session
+	Commands       map[string]Command
+	ServerCommands map[string]ServerCommand
+	config         DiscordHandlerConfig
+	Input, Output  chan api.MessageWithSender
+	stopchan       chan bool
+	masterconfig   api.IConfig
+	serverhandler  api.IServerHandler
+	permhandler    api.IPermHandler
 }
 
 func (d *DiscordHandler) ChatInput() chan api.MessageWithSender {
@@ -82,8 +89,9 @@ func NewDiscordHandler(token string, masterconfig api.IConfig) (*DiscordHandler,
 		return nil, err
 	}
 	handler := &DiscordHandler{
-		session:  session,
-		Commands: make(map[string]Command),
+		session:        session,
+		Commands:       make(map[string]Command),
+		ServerCommands: make(map[string]ServerCommand),
 		config: DiscordHandlerConfig{
 			ChannelId:   "",
 			ControlChar: "!",
@@ -101,12 +109,29 @@ func NewDiscordHandler(token string, masterconfig api.IConfig) (*DiscordHandler,
 
 	// Add command handlers
 	handler.Commands = make(map[string]Command)
-	handler.AddCommandHandler(Command{"listcommands", "listcommands", "Lists all commands", handler.handleListCommands})
-	handler.AddCommandHandler(Command{"json", "json <json>", "Test json input", handler.handleJsonTest})
-	handler.AddCommandHandler(Command{"setchannel", "setchannel", "Sets the server interaction channel here.", handler.handleSetChannel})
-	handler.AddCommandHandler(Command{"ls", "ls", "List servers", handler.handleListServers})
-	handler.AddCommandHandler(Command{"as", "as <address:port> <name>", "Add servers", handler.handleAddServer})
-	handler.AddCommandHandler(Command{"rm", "rm (<address:port>|<name>)", "Remove server", handler.handleRemoveServer})
+	handler.AddCommandHandler(api.Allow, Command{"listcommands", "listcommands", "Lists all commands", handler.handleListCommands})
+	handler.AddCommandHandler(api.Allow, Command{"json", "json <json>", "Test json input", handler.handleJsonTest})
+	handler.AddCommandHandler(api.Allow, Command{"setchannel", "setchannel", "Sets the server interaction channel here.", handler.handleSetChannel})
+	handler.AddCommandHandler(api.Allow, Command{"ls", "ls", "List servers", handler.handleListServers})
+	handler.AddCommandHandler(api.Allow, Command{"as", "as <address:port> <name>", "Add servers", handler.handleAddServer})
+	handler.AddCommandHandler(api.Allow, Command{"rm", "rm (<address:port>|<name>)", "Remove server", handler.handleRemoveServer})
+
+	handler.AddCommandHandler(api.Allow, Command{"lp", "lp (filterstring)", "List Permission Nodes with optional filter", handler.handleListPermissions})
+	handler.AddCommandHandler(api.Allow, Command{"lpn", "lpn <perm.node>", "List Permissions for Node", handler.handleListPermissionsForNode})
+	handler.AddCommandHandler(api.Block, Command{"apr", "apr <perm.node> <mentionrole> <yes|no>", "Add perm for mentioned role with value.", handler.handleAddPermRole})
+	handler.AddCommandHandler(api.Block, Command{"apu", "apu <perm.node> <mentionuser> <yes|no>", "Add perm for mentioned user with value.", handler.handleAddPermUser})
+	handler.AddCommandHandler(api.Block, Command{"rpr", "rpr <perm.node> <rolename>", "Remove perm for mentioned role", handler.handleRemovePermRole})
+	handler.AddCommandHandler(api.Block, Command{"rpu", "rpu <perm.node> <username>", "Remove perm for mentioned user", handler.handleRemovePermUser})
+
+	handler.AddCommandHandler(api.Allow, Command{"lsc", "lsc", "Lists all server commands", handler.handleListServerCommands})
+
+	handler.AddServerCommandHandler(ServerCommand{"start", "start", "Starts the server if it's not running", handler.handleSendServerCommandMessage})
+	handler.AddServerCommandHandler(ServerCommand{"stop", "stop", "Stop the server", handler.handleSendServerCommandMessage})
+	handler.AddServerCommandHandler(ServerCommand{"kill", "kill", "Force kill the server", handler.handleSendServerCommandMessage})
+	handler.AddServerCommandHandler(ServerCommand{"reboot", "reboot", "Stops and reboots the server", handler.handleSendServerCommandMessage})
+	handler.AddServerCommandHandler(ServerCommand{"forcereboot", "forcereboot", "Force kills the server and reboots.", handler.handleSendServerCommandMessage})
+	handler.AddServerCommandHandler(ServerCommand{"save", "save", "Saves the server.", handler.handleSendServerCommandMessage})
+	handler.ServerCommandRoot().GetOrAddPermNode("unknown").SetPermDefault(api.Block)
 
 	handler.masterconfig.AddReadHandler(ConfigKey, handler.handleConfigRead)
 	handler.masterconfig.AddWriteHandler(ConfigKey, handler.handleConfigWrite)
@@ -166,14 +191,25 @@ func (discord *DiscordHandler) Close() error {
 	return discord.session.Close()
 }
 
-func (discord *DiscordHandler) AddCommandHandler(command Command) error {
+func (discord *DiscordHandler) AddCommandHandler(perm api.PermDefault, command Command) error {
 	if _, ok := discord.Commands[command.Name]; ok {
 		fmt.Println("Command handler already registered for command:", command.Name)
 		return errors.New("Command handler already registered for command:" + command.Name)
 	}
 	node := discord.CommandRoot().GetOrAddPermNode(command.Name)
-	node.SetPermDefault(api.Allow)
+	node.SetPermDefault(perm)
 	discord.Commands[command.Name] = command
+	return nil
+}
+
+func (discord *DiscordHandler) AddServerCommandHandler(command ServerCommand) error {
+	if _, ok := discord.ServerCommands[command.Name]; ok {
+		fmt.Println("ServerCommand handler already registered for command:", command.Name)
+		return errors.New("ServerCommand handler already registered for command:" + command.Name)
+	}
+	node := discord.ServerCommandRoot().GetOrAddPermNode(command.Name)
+	node.SetPermDefault(api.Block)
+	discord.ServerCommands[command.Name] = command
 	return nil
 }
 
@@ -191,7 +227,7 @@ func (discord *DiscordHandler) messageCreate(s *discordgo.Session, m *discordgo.
 	}
 
 	go func() {
-		println("Received message: ", m.Content, ", from user: ", m.Author.Username)
+		println("Received message: ", m.Content, ", from user: ", m.Author.Username, ", id:", m.Author.ID, ", in channel:", m.ChannelID, ", in guild: ", m.GuildID)
 		if discord.isCommandMessage(m.Content) {
 			if discord.isCommandMessage(m.Content[1:]) {
 				err := discord.handleServerCommandMessage(s, m)
@@ -211,109 +247,6 @@ func (discord *DiscordHandler) messageCreate(s *discordgo.Session, m *discordgo.
 			}
 		}
 	}()
-}
-
-func (discord *DiscordHandler) handleSetChannel(data string, m *discordgo.MessageCreate) error {
-	discord.config.ChannelId = m.ChannelID
-	return discord.masterconfig.Write()
-}
-
-func (discord *DiscordHandler) handleJsonTest(data string, m *discordgo.MessageCreate) error {
-	return nil
-}
-
-func (discord *DiscordHandler) handleListServers(data string, m *discordgo.MessageCreate) error {
-	if discord.config.ChannelId != m.Message.ChannelID {
-		fmt.Println("Wrong channel")
-		return errors.New("Wrong channel")
-	}
-	var serverfields []*discordgo.MessageEmbedField
-	for _, server := range discord.serverhandler.Servers() {
-		serverfields = append(serverfields, &discordgo.MessageEmbedField{
-			Name:  fmt.Sprintf("%s", server.Name()),
-			Value: fmt.Sprintf("%s:%d", server.Location().Address, server.Location().Port),
-		})
-	}
-	embed := &discordgo.MessageEmbed{
-		Author:      &discordgo.MessageEmbedAuthor{},
-		Color:       0x00ff00,
-		Description: "Servers connected to discord.",
-		Fields:      serverfields,
-		Timestamp:   time.Now().Format(time.RFC3339),
-		Title:       "List Servers",
-	}
-	_, err := discord.session.ChannelMessageSendEmbed(discord.config.ChannelId, embed)
-	if err != nil {
-		fmt.Println("Error embedding message", err)
-		return err
-	}
-	return nil
-}
-
-func (discord *DiscordHandler) handleListCommands(data string, m *discordgo.MessageCreate) error {
-	var commandfields []*discordgo.MessageEmbedField
-	for _, command := range discord.Commands {
-		commandfields = append(commandfields, &discordgo.MessageEmbedField{
-			Name:   command.Name,
-			Value:  fmt.Sprintf("Usage: %s\n%s", discord.config.ControlChar+command.Usage, command.Description),
-			Inline: true,
-		})
-	}
-	embed := &discordgo.MessageEmbed{
-		Author:      &discordgo.MessageEmbedAuthor{},
-		Color:       0x00ff00,
-		Description: "Bot discord commands",
-		Fields:      commandfields,
-		Timestamp:   time.Now().Format(time.RFC3339),
-		Title:       "List Commands",
-	}
-	_, err := discord.session.ChannelMessageSendEmbed(discord.config.ChannelId, embed)
-	if err != nil {
-		fmt.Println("Error embedding message", err)
-		return err
-	}
-	return nil
-
-	return nil
-}
-
-func (discord *DiscordHandler) handleAddServer(data string, m *discordgo.MessageCreate) error {
-	if discord.config.ChannelId != m.Message.ChannelID {
-		return errors.New("Wrong channel")
-	}
-	args := strings.Split(data, " ")
-	if len(args) < 2 {
-		fmt.Println("Add server needs server name.")
-		return errors.New("Add server needs args {ip:port} {name}")
-	}
-
-	location, err := api.ParseNetLocation(args[0])
-	if err != nil {
-		fmt.Println("Add server could not parse NetLocation:", err)
-		return err
-	}
-
-	name := strings.Join(args[1:], " ")
-	err = discord.serverhandler.AddServer(*location, name)
-	if err != nil {
-		fmt.Println("Add server could not add server", err)
-		return err
-	}
-	return nil
-}
-func (discord *DiscordHandler) handleRemoveServer(data string, m *discordgo.MessageCreate) error {
-	if discord.config.ChannelId != m.Message.ChannelID {
-		return errors.New("Wrong channel")
-	}
-	if strings.Contains(data, ":") {
-		location, err := api.ParseNetLocation(data)
-		if err != nil {
-			return err
-		}
-		return discord.serverhandler.RemoveServer(*location)
-	} else {
-		return discord.serverhandler.RemoveServerByName(data)
-	}
 }
 
 func (discord *DiscordHandler) handleConfigRead(data json.RawMessage) error {
@@ -342,7 +275,7 @@ func (discord *DiscordHandler) parseCommandMessage(message string) (string, stri
 	ispace := strings.Index(strings.TrimSpace(message), " ")
 	if ispace > 0 {
 		command = message[:ispace]
-		data = message[ispace:]
+		data = message[ispace+1:]
 	} else {
 		command = strings.TrimSpace(message)
 		data = ""
@@ -355,27 +288,38 @@ func (discord *DiscordHandler) handleCommandMessage(s *discordgo.Session, m *dis
 
 	println("Received command: ", command, ", from user: ", m.Author.Username, ", with data: ", data)
 
+	userid := m.Author.ID
+
 	commandNode, err := discord.CommandRoot().GetPermNode(command)
 	if err != nil {
 		return err
 	}
-	userid := m.Author.ID
-	member, err := s.GuildMember(m.GuildID, userid)
+
+	guild, err := s.Guild(m.GuildID)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Command node path:", commandNode.FullName())
+	if guild.OwnerID != userid {
+		member, err := s.GuildMember(m.GuildID, userid)
+		if err != nil {
+			return err
+		}
 
-	check, err := discord.permhandler.UserWithRolesAllowed(commandNode.FullName(), m.GuildID, userid, member.Roles)
-	if err != nil {
-		fmt.Println("Error on detecting permissions:", err)
-		return err
-	}
+		fmt.Println("Command node path:", commandNode.FullName())
 
-	if !check.Allowed {
-		fmt.Println("Perms not allowed at path:", check.Path)
-		return errors.New("Perms not allowed")
+		check, err := discord.permhandler.UserWithRolesAllowed(commandNode.FullName(), m.GuildID, userid, member.Roles)
+		if err != nil {
+			fmt.Println("Error on detecting permissions:", err)
+			return err
+		}
+
+		if !check.Allowed {
+			fmt.Println("Perms not allowed at path:", check.Path)
+			return errors.New("Perms not allowed")
+		}
+	} else {
+		fmt.Println("Server owners can do everything.")
 	}
 
 	cmd, ok := discord.Commands[command]
@@ -384,7 +328,7 @@ func (discord *DiscordHandler) handleCommandMessage(s *discordgo.Session, m *dis
 		return fmt.Errorf("Unknown command: %s", command)
 	}
 
-	err = cmd.Handler(data, m)
+	err = cmd.Handler(data, s, m)
 	if err != nil {
 		err := s.MessageReactionAdd(m.Message.ChannelID, m.Message.ID, Emoji_X)
 		if err != nil {
@@ -403,21 +347,57 @@ func (discord *DiscordHandler) handleCommandMessage(s *discordgo.Session, m *dis
 
 func (discord *DiscordHandler) handleServerCommandMessage(s *discordgo.Session, m *discordgo.MessageCreate) error {
 	server, cmddata := discord.parseCommandMessage(m.Content[2:])
+	command, _ := discord.parseCommandMessage(cmddata)
 
-	println("Received command to server: ", server, ", from user: ", m.Author.Username, ", with id: ", m.Author.ID, ", with data: ", cmddata)
+	println("Received command:", command, " to server: ", server, ", from user: ", m.Author.Username, ", with id: ", m.Author.ID, ", with data: ", cmddata)
 
-	command := api.Command{Command: cmddata}
-	var header api.Header
-	err := api.MarshalCommandToHeader(&command, &header)
-	if err != nil {
-		fmt.Println("Error marshalling command", err)
+	userid := m.Author.ID
+
+	var commandNode api.IPermNode
+	var err error
+	cmd, knownCommand := discord.ServerCommands[command]
+	if !knownCommand {
+		fmt.Println("Unknown command:", command)
+		commandNode, err = discord.ServerCommandRoot().GetPermNode("unknown")
 	} else {
-		loc, inerr := api.ParseNetLocation(server)
-		if inerr == nil {
-			err = discord.serverhandler.SendPacketToServer(header, *loc)
-		} else {
-			err = discord.serverhandler.SendPacketToServerByName(header, server)
+		commandNode, err = discord.ServerCommandRoot().GetPermNode(command)
+	}
+	if err != nil {
+		fmt.Println("Error getting perm node")
+		return err
+	}
+
+	guild, err := s.Guild(m.GuildID)
+	if err != nil {
+		return err
+	}
+
+	if guild.OwnerID != userid {
+		member, err := s.GuildMember(m.GuildID, userid)
+		if err != nil {
+			return err
 		}
+
+		fmt.Println("ServerCommand node path:", commandNode.FullName())
+
+		check, err := discord.permhandler.UserWithRolesAllowed(commandNode.FullName(), m.GuildID, userid, member.Roles)
+		if err != nil {
+			fmt.Println("Error on detecting permissions:", err)
+			return err
+		}
+
+		if !check.Allowed {
+			fmt.Println("Perms not allowed at path:", check.Path)
+			return errors.New("Perms not allowed")
+		}
+	} else {
+		fmt.Println("Server owners can do everything.")
+	}
+
+	if !knownCommand {
+		err = discord.handleSendServerCommandMessage(cmddata, s, m)
+	} else {
+		err = cmd.Handler(cmddata, s, m)
 	}
 
 	if err != nil {
@@ -434,4 +414,23 @@ func (discord *DiscordHandler) handleServerCommandMessage(s *discordgo.Session, 
 		}
 	}
 	return nil
+}
+
+func (discord *DiscordHandler) handleSendServerCommandMessage(s string, session *discordgo.Session, m *discordgo.MessageCreate) error {
+	server, cmddata := discord.parseCommandMessage(m.Content[2:])
+
+	command := api.Command{Command: cmddata}
+	var header api.Header
+	err := api.MarshalCommandToHeader(&command, &header)
+	if err != nil {
+		fmt.Println("Error marshalling command", err)
+	} else {
+		loc, inerr := api.ParseNetLocation(server)
+		if inerr == nil {
+			err = discord.serverhandler.SendPacketToServer(header, *loc)
+		} else {
+			err = discord.serverhandler.SendPacketToServerByName(header, server)
+		}
+	}
+	return err
 }

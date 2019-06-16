@@ -50,6 +50,22 @@ func (g *GuildPerm) GetRolePerm(user string) (api.IPerm, error) {
 	return perm, nil
 }
 
+func (g *GuildPerm) PermsUser() []api.IPerm {
+	var perms []api.IPerm
+	for _, perm := range g.UserPerms {
+		perms = append(perms, perm)
+	}
+	return perms
+}
+
+func (g *GuildPerm) PermsRole() []api.IPerm {
+	var perms []api.IPerm
+	for _, perm := range g.RolePerms {
+		perms = append(perms, perm)
+	}
+	return perms
+}
+
 type Perm struct {
 	ID      string `json:"id"`
 	Allowed bool   `json:"y"`
@@ -61,6 +77,32 @@ func (p *Perm) PermID() string {
 
 func (p *Perm) PermAllowed() bool {
 	return p.Allowed
+}
+
+func (perm *PermManager) RootNodes() []api.IPermNode {
+	var nodes []api.IPermNode
+	for _, node := range perm.Roots {
+		nodes = append(nodes, node)
+	}
+	return nodes
+}
+
+func (perm *PermManager) RecursiveGetAllNodes() []api.IPermNode {
+	var nodes []api.IPermNode
+	for _, child := range perm.Roots {
+		nodes = append(nodes, child)
+		nodes = append(nodes, child.RecursiveGetAllChildren()...)
+	}
+	return nodes
+}
+
+func (perm *PermNode) RecursiveGetAllChildren() []api.IPermNode {
+	var nodes []api.IPermNode
+	for _, child := range perm.Children {
+		nodes = append(nodes, child)
+		nodes = append(nodes, child.RecursiveGetAllChildren()...)
+	}
+	return nodes
 }
 
 func (perm *PermManager) GetRoot(name string) (api.IPermNode, error) {
@@ -164,6 +206,14 @@ func (node *PermNode) FullName() string {
 	return node.Fullname
 }
 
+func (node *PermNode) ChildNodes() []api.IPermNode {
+	var nodes []api.IPermNode
+	for _, child := range node.Children {
+		nodes = append(nodes, child)
+	}
+	return nodes
+}
+
 func (node *PermNode) AddOrSetRolePerm(guildid, role string, allow bool) {
 	pguild := node.getOrAddGuildPerm(guildid)
 	prole, ok := pguild.RolePerms[role]
@@ -182,6 +232,34 @@ func (node *PermNode) AddOrSetUserPerm(guildid, user string, allow bool) {
 	} else {
 		puser.Allowed = allow
 	}
+}
+
+func (node *PermNode) RemoveRolePerm(guildid, role string) {
+	guildperm, ok := node.GuildPerms[guildid]
+	if !ok {
+		return
+	}
+
+	_, ok = guildperm.RolePerms[role]
+	if !ok {
+		return
+	}
+
+	delete(guildperm.RolePerms, role)
+}
+
+func (node *PermNode) RemoveUserPerm(guildid, user string) {
+	guildperm, ok := node.GuildPerms[guildid]
+	if !ok {
+		return
+	}
+
+	_, ok = guildperm.UserPerms[user]
+	if !ok {
+		return
+	}
+
+	delete(guildperm.UserPerms, user)
 }
 
 func (node *PermNode) getOrAddGuildPerm(guildid string) *GuildPerm {

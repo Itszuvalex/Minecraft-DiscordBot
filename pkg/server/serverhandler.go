@@ -1,10 +1,15 @@
 package server // "github.com/itszuvalex/mcdiscord/pkg/server"
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 
 	"github.com/itszuvalex/mcdiscord/pkg/api"
+)
+
+const (
+	ConfigKey = "Servers"
 )
 
 type ServerHandler struct {
@@ -71,6 +76,7 @@ func (discord *ServerHandler) RemoveServer(address api.NetLocation) error {
 	}
 	server.Close()
 	delete(discord.ServerMap, address)
+	discord.mainconfig.Write()
 	return nil
 }
 
@@ -79,6 +85,7 @@ func (discord *ServerHandler) RemoveServerByName(name string) error {
 		if server.Name() == name {
 			server.Close()
 			delete(discord.ServerMap, loc)
+			discord.mainconfig.Write()
 			return nil
 		}
 	}
@@ -112,4 +119,29 @@ func (handler *ServerHandler) SendPacketToServerByName(header api.Header, name s
 	}
 	fmt.Println("Could not find a server of name: ", name)
 	return fmt.Errorf("Could not find a server of name %s", name)
+}
+
+func (server *ServerHandler) handleConfigRead(data json.RawMessage) error {
+	var servers []mcserveridentifier
+
+	err := json.Unmarshal(data, &servers)
+	if err != nil {
+		return err
+	}
+	for _, i := range servers {
+		_, ok := server.ServerMap[i.Location]
+		if !ok {
+			server.AddServer(i.Location, i.Name)
+		}
+	}
+	return nil
+}
+
+func (server *ServerHandler) handleConfigWrite() (json.RawMessage, error) {
+	var servers []mcserveridentifier
+	for loc, s := range server.ServerMap {
+		servers = append(servers, mcserveridentifier{loc, s.Name()})
+	}
+
+	return json.Marshal(&servers)
 }

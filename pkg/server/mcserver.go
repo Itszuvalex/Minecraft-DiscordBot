@@ -32,6 +32,11 @@ type mcServer struct {
 	name string
 }
 
+type mcserveridentifier struct {
+	Location api.NetLocation `json:"loc"`
+	Name     string          `json:"name"`
+}
+
 func (mcs *mcServer) Location() api.NetLocation {
 	return mcs.net.Location
 }
