@@ -86,10 +86,6 @@ func (discord *DiscordHandler) handleJsonTest(data string, s *discordgo.Session,
 }
 
 func (discord *DiscordHandler) handleListServers(data string, s *discordgo.Session, m *discordgo.MessageCreate) error {
-	if discord.config.ChannelId != m.Message.ChannelID {
-		fmt.Println("Wrong channel")
-		return errors.New("Wrong channel")
-	}
 	var serverfields []*discordgo.MessageEmbedField
 	for _, server := range discord.serverhandler.Servers() {
 		serverfields = append(serverfields, &discordgo.MessageEmbedField{
