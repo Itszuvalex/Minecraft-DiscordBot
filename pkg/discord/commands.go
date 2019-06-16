@@ -293,14 +293,7 @@ func (discord *DiscordHandler) handleRemovePermRole(data string, s *discordgo.Se
 		restofdata = restofdata[ibracket+1:]
 		roleID = rolemention[3:len(rolemention)]
 	} else {
-		ispace = strings.Index(restofdata, " ")
-		if ispace < 0 {
-			fmt.Println("Not enough arguments")
-			return errors.New("Not enough arguments")
-		}
-
-		rolename = restofdata[:ispace]
-		restofdata = restofdata[ispace+1:]
+		rolename = restofdata
 
 		roles, err := s.GuildRoles(m.GuildID)
 		if err != nil {
