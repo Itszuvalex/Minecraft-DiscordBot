@@ -13,6 +13,10 @@ type PermManager struct {
 }
 
 func NewPermHandler() api.IPermHandler {
+	return newPermManager()
+}
+
+func newPermManager() *PermManager {
 	return &PermManager{Roots: make(map[string]*PermNode)}
 }
 
@@ -207,7 +211,48 @@ func (perm *PermManager) WriteJson() (json.RawMessage, error) {
 }
 
 func (perm *PermManager) ReadJson(data json.RawMessage) error {
-	return json.Unmarshal(data, perm)
+	jsonCopy := newPermManager()
+	err := json.Unmarshal(data, &jsonCopy)
+	if err != nil {
+		return err
+	}
+
+	for name, root := range jsonCopy.Roots {
+		myroot := perm.GetOrAddRoot(name).(*PermNode)
+		err := perm.DiffNodes(myroot, root)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (perm *PermManager) DiffNodes(mynode *PermNode, theirNode *PermNode) error {
+	mynode.SetPermDefault(theirNode.PermDefault())
+
+	// GuildPerms
+	for guildid, guildperm := range theirNode.GuildPerms {
+		// Users
+		for userid, userperm := range guildperm.UserPerms {
+			mynode.AddOrSetUserPerm(guildid, userid, userperm.PermAllowed())
+		}
+
+		// Roles
+		for roleid, roleperm := range guildperm.RolePerms {
+			mynode.AddOrSetRolePerm(guildid, roleid, roleperm.PermAllowed())
+		}
+	}
+
+	// Children
+	for id, child := range theirNode.Children {
+		mychild := mynode.GetOrAddPermNode(id).(*PermNode)
+		err := perm.DiffNodes(mychild, child)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 type permhandler func(api.IPermNode) (bool, error)

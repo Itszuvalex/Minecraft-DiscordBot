@@ -18,19 +18,26 @@ const (
 	BufferSize         = 100
 )
 
+type Command struct {
+	Name        string
+	Usage       string
+	Description string
+	Handler     commandHandler
+}
+
 // CommandHandler Type of function that receives new message callbacks from discord
 type commandHandler func(string, *discordgo.MessageCreate) error
 
 // DiscordHandler Struct that contains all Discord-related information and handles messages to/from Discord
 type DiscordHandler struct {
-	session         *discordgo.Session
-	commandHandlers map[string]commandHandler
-	config          DiscordHandlerConfig
-	Input, Output   chan api.MessageWithSender
-	stopchan        chan bool
-	masterconfig    api.IConfig
-	serverhandler   api.IServerHandler
-	permhandler     api.IPermHandler
+	session       *discordgo.Session
+	Commands      map[string]Command
+	config        DiscordHandlerConfig
+	Input, Output chan api.MessageWithSender
+	stopchan      chan bool
+	masterconfig  api.IConfig
+	serverhandler api.IServerHandler
+	permhandler   api.IPermHandler
 }
 
 func (d *DiscordHandler) ChatInput() chan api.MessageWithSender {
@@ -75,8 +82,8 @@ func NewDiscordHandler(token string, masterconfig api.IConfig) (*DiscordHandler,
 		return nil, err
 	}
 	handler := &DiscordHandler{
-		session:         session,
-		commandHandlers: make(map[string]commandHandler),
+		session:  session,
+		Commands: make(map[string]Command),
 		config: DiscordHandlerConfig{
 			ChannelId:   "",
 			ControlChar: "!",
@@ -93,12 +100,13 @@ func NewDiscordHandler(token string, masterconfig api.IConfig) (*DiscordHandler,
 	//handler.AddHandler(handler.messageReactionAdd)
 
 	// Add command handlers
-	handler.commandHandlers = make(map[string]commandHandler)
-	handler.AddCommandHandler("json", handler.handleJsonTest)
-	handler.AddCommandHandler("setchannel", handler.handleSetChannel)
-	handler.AddCommandHandler("ls", handler.handleListServers)
-	handler.AddCommandHandler("as", handler.handleAddServer)
-	handler.AddCommandHandler("rm", handler.handleRemoveServer)
+	handler.Commands = make(map[string]Command)
+	handler.AddCommandHandler(Command{"listcommands", "listcommands", "Lists all commands", handler.handleListCommands})
+	handler.AddCommandHandler(Command{"json", "json <json>", "Test json input", handler.handleJsonTest})
+	handler.AddCommandHandler(Command{"setchannel", "setchannel", "Sets the server interaction channel here.", handler.handleSetChannel})
+	handler.AddCommandHandler(Command{"ls", "ls", "List servers", handler.handleListServers})
+	handler.AddCommandHandler(Command{"as", "as <address:port> <name>", "Add servers", handler.handleAddServer})
+	handler.AddCommandHandler(Command{"rm", "rm (<address:port>|<name>)", "Remove server", handler.handleRemoveServer})
 
 	handler.masterconfig.AddReadHandler(ConfigKey, handler.handleConfigRead)
 	handler.masterconfig.AddWriteHandler(ConfigKey, handler.handleConfigWrite)
@@ -158,14 +166,14 @@ func (discord *DiscordHandler) Close() error {
 	return discord.session.Close()
 }
 
-func (discord *DiscordHandler) AddCommandHandler(command string, handler commandHandler) error {
-	if _, ok := discord.commandHandlers[command]; ok {
-		fmt.Println("Command handler already registered for command:", command)
-		return errors.New("Command handler already registered for command:" + command)
+func (discord *DiscordHandler) AddCommandHandler(command Command) error {
+	if _, ok := discord.Commands[command.Name]; ok {
+		fmt.Println("Command handler already registered for command:", command.Name)
+		return errors.New("Command handler already registered for command:" + command.Name)
 	}
-	node := discord.CommandRoot().GetOrAddPermNode(command)
+	node := discord.CommandRoot().GetOrAddPermNode(command.Name)
 	node.SetPermDefault(api.Allow)
-	discord.commandHandlers[command] = handler
+	discord.Commands[command.Name] = command
 	return nil
 }
 
@@ -239,6 +247,33 @@ func (discord *DiscordHandler) handleListServers(data string, m *discordgo.Messa
 		fmt.Println("Error embedding message", err)
 		return err
 	}
+	return nil
+}
+
+func (discord *DiscordHandler) handleListCommands(data string, m *discordgo.MessageCreate) error {
+	var commandfields []*discordgo.MessageEmbedField
+	for _, command := range discord.Commands {
+		commandfields = append(commandfields, &discordgo.MessageEmbedField{
+			Name:   command.Name,
+			Value:  fmt.Sprintf("Usage: %s\n%s", discord.config.ControlChar+command.Usage, command.Description),
+			Inline: true,
+		})
+	}
+	embed := &discordgo.MessageEmbed{
+		Author:      &discordgo.MessageEmbedAuthor{},
+		Color:       0x00ff00,
+		Description: "Bot discord commands",
+		Fields:      commandfields,
+		Timestamp:   time.Now().Format(time.RFC3339),
+		Title:       "List Commands",
+	}
+	_, err := discord.session.ChannelMessageSendEmbed(discord.config.ChannelId, embed)
+	if err != nil {
+		fmt.Println("Error embedding message", err)
+		return err
+	}
+	return nil
+
 	return nil
 }
 
@@ -343,13 +378,13 @@ func (discord *DiscordHandler) handleCommandMessage(s *discordgo.Session, m *dis
 		return errors.New("Perms not allowed")
 	}
 
-	handler, ok := discord.commandHandlers[command]
+	cmd, ok := discord.Commands[command]
 	if !ok {
 		println("No handler registered for command:", command)
 		return fmt.Errorf("Unknown command: %s", command)
 	}
 
-	err = handler(data, m)
+	err = cmd.Handler(data, m)
 	if err != nil {
 		err := s.MessageReactionAdd(m.Message.ChannelID, m.Message.ID, Emoji_X)
 		if err != nil {
