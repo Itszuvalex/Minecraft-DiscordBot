@@ -31,4 +31,4 @@ $(BINARY_UNIX):
 	scripts\BuildLinux.bat $(BINARY_UNIX)
 
 docker-build: build-linux
-	scripts\BuildLinuxDockerfile.bat $(BINARY_UNIX) $(BINARY_NAME)
+	scripts\BuildLinuxDockerfile.bat

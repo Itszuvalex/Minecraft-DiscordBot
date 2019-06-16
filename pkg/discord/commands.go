@@ -28,7 +28,7 @@ func (discord *DiscordHandler) handleListCommands(data string, s *discordgo.Sess
 		Timestamp:   time.Now().Format(time.RFC3339),
 		Title:       "List Commands",
 	}
-	_, err := s.ChannelMessageSendEmbed(discord.config.ChannelId, embed)
+	_, err := s.ChannelMessageSendEmbed(m.Message.ChannelID, embed)
 	if err != nil {
 		fmt.Println("Error embedding message", err)
 		return err
@@ -105,7 +105,7 @@ func (discord *DiscordHandler) handleListServers(data string, s *discordgo.Sessi
 		Timestamp:   time.Now().Format(time.RFC3339),
 		Title:       "List Servers",
 	}
-	_, err := s.ChannelMessageSendEmbed(discord.config.ChannelId, embed)
+	_, err := s.ChannelMessageSendEmbed(m.Message.ChannelID, embed)
 	if err != nil {
 		fmt.Println("Error embedding message", err)
 		return err
@@ -131,7 +131,7 @@ func (discord *DiscordHandler) handleListServerCommands(data string, s *discordg
 		Title:       "List Server Commands",
 	}
 
-	_, err := s.ChannelMessageSendEmbed(discord.config.ChannelId, embed)
+	_, err := s.ChannelMessageSendEmbed(m.Message.ChannelID, embed)
 	if err != nil {
 		fmt.Println("Error embedding message", err)
 		return err
@@ -153,7 +153,7 @@ func (discord *DiscordHandler) handleListPermissions(data string, s *discordgo.S
 
 	sort.Strings(lines)
 
-	_, err := s.ChannelMessageSend(discord.config.ChannelId, strings.Join(lines, "\n"))
+	_, err := s.ChannelMessageSend(m.Message.ChannelID, strings.Join(lines, "\n"))
 	if err != nil {
 		fmt.Println("Error sending message", err)
 		return err
@@ -175,20 +175,21 @@ func (discord *DiscordHandler) handleAddPermRole(data string, s *discordgo.Sessi
 	roleID := ""
 	rolename := ""
 	// <@& %s >
-	ibracket := strings.Index(strings.TrimSpace(restofdata), ">")
+	restofdata = strings.TrimSpace(restofdata)
+	ibracket := strings.Index(restofdata, ">")
 	if ibracket > 0 {
 		rolemention := restofdata[:ibracket]
 		restofdata = restofdata[ibracket+1:]
 		roleID = rolemention[3:len(rolemention)]
 	} else {
-		ispace = strings.Index(strings.TrimSpace(restofdata), " ")
+		ispace = strings.Index(restofdata, " ")
 		if ispace < 0 {
 			fmt.Println("Not enough arguments")
 			return errors.New("Not enough arguments")
 		}
 
-		rolename = data[:ispace]
-		restofdata = data[ispace+1:]
+		rolename = restofdata[:ispace]
+		restofdata = restofdata[ispace+1:]
 
 		roles, err := s.GuildRoles(m.GuildID)
 		if err != nil {
@@ -285,20 +286,21 @@ func (discord *DiscordHandler) handleRemovePermRole(data string, s *discordgo.Se
 	roleID := ""
 	rolename := ""
 	// <@& %s >
-	ibracket := strings.Index(strings.TrimSpace(restofdata), ">")
+	restofdata = strings.TrimSpace(restofdata)
+	ibracket := strings.Index(restofdata, ">")
 	if ibracket > 0 {
 		rolemention := restofdata[:ibracket]
 		restofdata = restofdata[ibracket+1:]
 		roleID = rolemention[3:len(rolemention)]
 	} else {
-		ispace = strings.Index(strings.TrimSpace(restofdata), " ")
+		ispace = strings.Index(restofdata, " ")
 		if ispace < 0 {
 			fmt.Println("Not enough arguments")
 			return errors.New("Not enough arguments")
 		}
 
-		rolename = data[:ispace]
-		restofdata = data[ispace+1:]
+		rolename = restofdata[:ispace]
+		restofdata = restofdata[ispace+1:]
 
 		roles, err := s.GuildRoles(m.GuildID)
 		if err != nil {
@@ -427,7 +429,7 @@ func (discord *DiscordHandler) handleListPermissionsForNode(data string, s *disc
 		Title:       node.Name(),
 	}
 
-	_, err = s.ChannelMessageSendEmbed(discord.config.ChannelId, embed)
+	_, err = s.ChannelMessageSendEmbed(m.Message.ChannelID, embed)
 	if err != nil {
 		fmt.Println("Error embedding message", err)
 		return err

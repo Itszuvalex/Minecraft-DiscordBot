@@ -32,7 +32,7 @@ type mcServer struct {
 	name string
 }
 
-type mcserveridentifier struct {
+type McServerIdentifier struct {
 	Location api.NetLocation `json:"loc"`
 	Name     string          `json:"name"`
 }

@@ -19,11 +19,14 @@ type ServerHandler struct {
 }
 
 func NewServerHandler(config api.IConfig, discordhandler api.IDiscordHandler) api.IServerHandler {
-	return &ServerHandler{
+	handler := &ServerHandler{
 		ServerMap:      make(map[api.NetLocation]api.IServer),
 		mainconfig:     config,
 		discordhandler: discordhandler,
 	}
+	config.AddReadHandler(ConfigKey, handler.handleConfigRead)
+	config.AddWriteHandler(ConfigKey, handler.handleConfigWrite)
+	return handler
 }
 
 func (discord *ServerHandler) Servers() map[api.NetLocation]api.IServer {
@@ -122,7 +125,7 @@ func (handler *ServerHandler) SendPacketToServerByName(header api.Header, name s
 }
 
 func (server *ServerHandler) handleConfigRead(data json.RawMessage) error {
-	var servers []mcserveridentifier
+	var servers []McServerIdentifier
 
 	err := json.Unmarshal(data, &servers)
 	if err != nil {
@@ -138,9 +141,9 @@ func (server *ServerHandler) handleConfigRead(data json.RawMessage) error {
 }
 
 func (server *ServerHandler) handleConfigWrite() (json.RawMessage, error) {
-	var servers []mcserveridentifier
+	var servers []McServerIdentifier
 	for loc, s := range server.ServerMap {
-		servers = append(servers, mcserveridentifier{loc, s.Name()})
+		servers = append(servers, McServerIdentifier{loc, s.Name()})
 	}
 
 	return json.Marshal(&servers)
