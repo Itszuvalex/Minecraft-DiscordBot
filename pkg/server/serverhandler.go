@@ -34,7 +34,7 @@ func (discord *ServerHandler) Servers() map[api.NetLocation]api.IServer {
 }
 
 func (discord *ServerHandler) AddServer(address api.NetLocation, name string) error {
-	server := NewMcServer(address, GetLocalIP(), name, discord.discordhandler.ChatInput())
+	server := NewMcServer(address, GetLocalIP(), name, discord.discordhandler, discord.discordhandler.ChatInput())
 	err := server.StartConnectLoop()
 	if err != nil {
 		return err
@@ -65,6 +65,7 @@ func (discord *ServerHandler) Close() []error {
 	var errors []error
 	for _, server := range discord.ServerMap {
 		err := server.Close()
+		server.DeleteStatusMessage()
 		if err != nil {
 			errors = append(errors, err)
 		}
@@ -78,6 +79,7 @@ func (discord *ServerHandler) RemoveServer(address api.NetLocation) error {
 		return fmt.Errorf("Could not find server of address %s:%d", address.Address, address.Port)
 	}
 	server.Close()
+	server.DeleteStatusMessage()
 	delete(discord.ServerMap, address)
 	discord.mainconfig.Write()
 	return nil
@@ -87,6 +89,7 @@ func (discord *ServerHandler) RemoveServerByName(name string) error {
 	for loc, server := range discord.ServerMap {
 		if server.Name() == name {
 			server.Close()
+			server.DeleteStatusMessage()
 			delete(discord.ServerMap, loc)
 			discord.mainconfig.Write()
 			return nil
@@ -125,7 +128,7 @@ func (handler *ServerHandler) SendPacketToServerByName(header api.Header, name s
 }
 
 func (server *ServerHandler) handleConfigRead(data json.RawMessage) error {
-	var servers []McServerIdentifier
+	var servers []McServerConfig
 
 	err := json.Unmarshal(data, &servers)
 	if err != nil {
@@ -141,9 +144,9 @@ func (server *ServerHandler) handleConfigRead(data json.RawMessage) error {
 }
 
 func (server *ServerHandler) handleConfigWrite() (json.RawMessage, error) {
-	var servers []McServerIdentifier
+	var servers []McServerConfig
 	for loc, s := range server.ServerMap {
-		servers = append(servers, McServerIdentifier{loc, s.Name()})
+		servers = append(servers, McServerConfig{loc, s.Name()})
 	}
 
 	return json.Marshal(&servers)

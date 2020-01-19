@@ -46,5 +46,6 @@ type IServer interface {
 	Name() string
 	StartConnectLoop() error
 	Close() error
+	DeleteStatusMessage() error
 	JsonChan() chan Header
 }

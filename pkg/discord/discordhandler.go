@@ -76,9 +76,10 @@ func (d *DiscordHandler) ServerCommandRoot() api.IPermNode {
 }
 
 type DiscordHandlerConfig struct {
-	ChannelId   string          `json:"channelId"`
-	ControlChar string          `json:"controlChar"`
-	PermData    json.RawMessage `json:"perms"`
+	ChannelId       string          `json:"channelId"`
+	StatusChannelId string          `json:"statuschannelId"`
+	ControlChar     string          `json:"controlChar"`
+	PermData        json.RawMessage `json:"perms"`
 }
 
 // NewDiscordHandler Creates a new DiscordHandler given a bot Token
@@ -112,6 +113,7 @@ func NewDiscordHandler(token string, masterconfig api.IConfig) (*DiscordHandler,
 	handler.AddCommandHandler(api.Allow, Command{"listcommands", "listcommands", "Lists all commands", handler.handleListCommands})
 	handler.AddCommandHandler(api.Allow, Command{"json", "json <json>", "Test json input", handler.handleJsonTest})
 	handler.AddCommandHandler(api.Allow, Command{"setchannel", "setchannel", "Sets the server interaction channel here.", handler.handleSetChannel})
+	handler.AddCommandHandler(api.Allow, Command{"setstatuschannel", "setstatuschannel", "Sets the server status channel here.", handler.handleSetStatusChannel})
 	handler.AddCommandHandler(api.Allow, Command{"ls", "ls", "List servers", handler.handleListServers})
 	handler.AddCommandHandler(api.Allow, Command{"as", "as <address:port> <name>", "Add servers", handler.handleAddServer})
 	handler.AddCommandHandler(api.Allow, Command{"rm", "rm (<address:port>|<name>)", "Remove server", handler.handleRemoveServer})
@@ -189,6 +191,10 @@ func (discord *DiscordHandler) Close() error {
 	discord.stopchan <- true
 	discord.stopchan <- true
 	return discord.session.Close()
+}
+
+func (discord *DiscordHandler) Session() *discordgo.Session {
+	return discord.session
 }
 
 func (discord *DiscordHandler) AddCommandHandler(perm api.PermDefault, command Command) error {

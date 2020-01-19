@@ -27,12 +27,15 @@ type mcServerNet struct {
 }
 
 type mcServer struct {
-	net  mcServerNet
-	data api.McServerData
-	name string
+	net             mcServerNet
+	data            api.McServerData
+	name            string
+	discord         api.IDiscordHandler
+	statusChannelId string
+	statusMessageId string
 }
 
-type McServerIdentifier struct {
+type McServerConfig struct {
 	Location api.NetLocation `json:"loc"`
 	Name     string          `json:"name"`
 }
@@ -57,7 +60,7 @@ func (mcs *mcServer) JsonChan() chan api.Header {
 	return mcs.net.JsonChan
 }
 
-func NewMcServer(location api.NetLocation, origin string, name string, msgchan chan api.MessageWithSender) api.IServer {
+func NewMcServer(location api.NetLocation, origin string, name string, discord api.IDiscordHandler, msgchan chan api.MessageWithSender) api.IServer {
 	server := &mcServer{
 		mcServerNet{
 			Location:    location,
@@ -70,6 +73,9 @@ func NewMcServer(location api.NetLocation, origin string, name string, msgchan c
 		},
 		api.McServerData{Name: name},
 		name,
+		discord,
+		"",
+		"",
 	}
 	server.net.JsonHandler.RegisterHandler(api.MessageType, func(obj interface{}) error {
 		message, ok := obj.(*api.Message)
@@ -96,6 +102,53 @@ func NewMcServer(location api.NetLocation, origin string, name string, msgchan c
 	})
 
 	return server
+}
+
+func (server *mcServer) SetStatusChannel(channelId string) error {
+	if channelId == "" || channelId != server.statusChannelId {
+		err := server.DeleteStatusMessage()
+		server.statusChannelId = channelId
+		server.statusMessageId = ""
+		if err != nil {
+			return err
+		}
+		err = server.updateStatusMessage()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (server *mcServer) updateStatusMessage() error {
+	if server.statusChannelId == "" {
+		return nil
+	}
+
+	if server.statusMessageId == "" {
+		message, err := server.discord.Session().ChannelMessageSend(server.statusChannelId, "Test")
+		if err != nil {
+			return err
+		}
+		server.statusMessageId = message.ID
+	} else {
+		message, err := server.discord.Session().ChannelMessageEdit(server.statusChannelId, server.statusMessageId, "TestEdit")
+		if err != nil {
+			return err
+		}
+		server.statusMessageId = message.ID
+	}
+
+	return nil
+}
+
+func (server *mcServer) DeleteStatusMessage() error {
+	if server.statusChannelId == "" || server.statusMessageId == "" {
+		return nil
+	}
+
+	return server.discord.Session().ChannelMessageDelete(server.statusChannelId, server.statusMessageId)
 }
 
 func (server *mcServerNet) StartConnectLoop() error {

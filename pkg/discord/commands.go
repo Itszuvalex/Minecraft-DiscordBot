@@ -81,6 +81,15 @@ func (discord *DiscordHandler) handleSetChannel(data string, s *discordgo.Sessio
 	return discord.masterconfig.Write()
 }
 
+func (discord *DiscordHandler) handleSetStatusChannel(data string, s *discordgo.Session, m *discordgo.MessageCreate) error {
+	err := discord.config.SetStatusChannelId(m.ChannelID)
+	if err != nil {
+		fmt.Println("Error calling SetStatusChannelId", err)
+		return err
+	}
+	return discord.masterconfig.Write()
+}
+
 func (discord *DiscordHandler) handleJsonTest(data string, s *discordgo.Session, m *discordgo.MessageCreate) error {
 	return nil
 }
